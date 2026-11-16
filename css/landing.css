@@ -701,6 +701,9 @@ html, body { overflow-x: clip; }
 /* checkbox row */
 .check { display: flex; align-items: flex-start; gap: 10px; }
 .check .check-input, input.check-input {
+  /* Native checkbox: undo the hidden-input rule in components.css,
+     which expects a custom .box sibling that this form doesn't use. */
+  position: static; opacity: 1;
   width: 17px; height: 17px; margin-top: 2px; flex-shrink: 0; accent-color: var(--c-primary-hover);
 }
 .check label { font-size: var(--fs-sm); color: var(--c-ink-2); line-height: 1.5; cursor: pointer; }

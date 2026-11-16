@@ -38,7 +38,9 @@ function getBooking(id) { return Bookings.byId(id); }
 
 /* Deterministic approach origin: a nearby place on the "other side" of pickup */
 function approachOrigin(booking) {
-  const near = nearbyPlaces(booking.pickup, 5).filter((p) => p.id !== booking.pickup.placeId);
+  // Only built-in places within 6 km; elsewhere (e.g. Cebu) start the driver
+  // from a short offset instead of a Manila landmark hundreds of km away.
+  const near = nearbyPlaces(booking.pickup, 5, 6).filter((p) => p.id !== booking.pickup.placeId);
   const idx = booking.id.length % Math.max(1, near.length);
   const p = near[idx] || near[0];
   if (p) return { lat: p.lat, lng: p.lng, name: p.name };

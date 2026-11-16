@@ -13,7 +13,7 @@ import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
 import { confirmDialog } from '../shared/modal.js';
 import { createMap } from '../shared/map.js';
-import { browserLocation, reverseGeocode } from '../shared/geo.js';
+import { locateUser, getLastLocation, reverseGeocode } from '../shared/geo.js';
 import { peso, timeAgo, firstNameOf } from '../shared/format.js';
 import { avatarElLite } from '../shared/ui-lite.js';
 import { tickValue } from '../shared/motion.js';
@@ -207,8 +207,10 @@ const dashboardView = {
     let myPos = { lat: 14.5587, lng: 121.0196 };
     setTimeout(async () => {
       if (!mapBox.isConnected) return;
-      const geo = await browserLocation({ timeout: 5000 });
-      if (geo) myPos = geo;
+      // locateUser also remembers the fix, so test requests spawn near the rider
+      const geo = (await locateUser({ timeout: 5000 })) || getLastLocation();
+      if (!mapBox.isConnected) return;
+      if (geo) myPos = { lat: geo.lat, lng: geo.lng };
       state.map = createMap(mapBox, { center: [myPos.lat, myPos.lng], zoom: 14 });
       if (!state.map) return;
       // pseudo demand spots scattered around the driver's position

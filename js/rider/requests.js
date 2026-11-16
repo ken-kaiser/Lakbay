@@ -8,8 +8,9 @@ import { Bookings, Notifs, Prefs, Users } from '../storage.js';
 import { Sim } from '../shared/sim.js';
 import {
   DEMO_PASSENGERS, RIDE_CATEGORIES, getPlace, generateRoute, routeLengthKm,
-  estimateDurationMin, estimateFare, PLACES,
+  estimateDurationMin, estimateFare, PLACES, nearbyPlaces,
 } from '../data.js';
+import { getLastLocation } from '../shared/geo.js';
 import { el, qs } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Modal } from '../shared/modal.js';
@@ -182,10 +183,30 @@ const RequestManager = {
       Toast.warn('You have an active trip', 'Finish your current ride before receiving new requests.');
       return null;
     }
-    const fromPool = PLACES.filter((p) => p.category !== 'airport');
-    const a = fromPool[Math.floor(Math.random() * fromPool.length)];
-    let b = fromPool[Math.floor(Math.random() * fromPool.length)];
-    if (b.id === a.id) b = fromPool[(fromPool.indexOf(a) + 3) % fromPool.length];
+    // Test requests happen around the rider's real location. The built-in
+    // places are Metro Manila only, so elsewhere (e.g. Cebu) we generate
+    // pickup/drop-off points a short drive from the rider instead.
+    const here = getLastLocation();
+    const localPool = here ? nearbyPlaces(here, 20, 20).filter((p) => p.category !== 'airport') : [];
+    let a, b;
+    if (localPool.length >= 2 || !here) {
+      const fromPool = localPool.length >= 2 ? localPool : PLACES.filter((p) => p.category !== 'airport');
+      a = fromPool[Math.floor(Math.random() * fromPool.length)];
+      b = fromPool[Math.floor(Math.random() * fromPool.length)];
+      if (b.id === a.id) b = fromPool[(fromPool.indexOf(a) + 1) % fromPool.length];
+    } else {
+      const spot = (minKm, maxKm, label) => {
+        const ang = Math.random() * Math.PI * 2;
+        const km = minKm + Math.random() * (maxKm - minKm);
+        return {
+          id: null, name: label, address: here.city ? `Near ${here.city}` : 'Near your area',
+          lat: here.lat + (Math.sin(ang) * km) / 111.32,
+          lng: here.lng + (Math.cos(ang) * km) / (111.32 * Math.cos(here.lat * Math.PI / 180)),
+        };
+      };
+      a = spot(0.5, 2, 'Passenger pickup');
+      b = spot(3, 8, 'Passenger drop-off');
+    }
     const catIds = (me.vehicle && me.vehicle.categoryIds && me.vehicle.categoryIds.length) ? me.vehicle.categoryIds : ['car'];
     const cat = RIDE_CATEGORIES.find((c) => c.id === catIds[0]) || RIDE_CATEGORIES[1];
     const pax = DEMO_PASSENGERS[Math.floor(Math.random() * DEMO_PASSENGERS.length)];
@@ -200,8 +221,8 @@ const RequestManager = {
       passengerAvatar: pax.avatar, passengerRating: pax.rating,
       riderId: null, rider: null, riderSource: null,
       category: cat.id,
-      pickup: { placeId: a.id, name: a.name, address: a.address, lat: a.lat, lng: a.lng, instructions: ['Wait at the guard house, Gate 2', 'Beside the coffee shop entrance', 'North wing passenger pickup', ''][Math.floor(Math.random() * 4)] },
-      dropoff: { placeId: b.id, name: b.name, address: b.address, lat: b.lat, lng: b.lng, instructions: '' },
+      pickup: { placeId: a.id || null, name: a.name, address: a.address, lat: a.lat, lng: a.lng, instructions: ['Wait at the guard house, Gate 2', 'Beside the coffee shop entrance', 'North wing passenger pickup', ''][Math.floor(Math.random() * 4)] },
+      dropoff: { placeId: b.id || null, name: b.name, address: b.address, lat: b.lat, lng: b.lng, instructions: '' },
       distanceKm: km, durationMin: mins, route,
       fare: estimateFare(cat.id, km, mins),
       payment: { method: ['cash', 'gcash', 'maya'][Math.floor(Math.random() * 3)], status: 'pending' },

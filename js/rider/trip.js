@@ -36,7 +36,8 @@ function myActiveBooking() {
 }
 
 function approachOrigin(pickup, seedId) {
-  const near = nearbyPlaces(pickup, 5).filter((p) => p.id !== pickup.placeId);
+  // Within 6 km only, so a pickup outside Manila doesn't route the driver from Manila
+  const near = nearbyPlaces(pickup, 5, 6).filter((p) => p.id !== pickup.placeId);
   const p = near[seedId.length % Math.max(1, near.length)] || near[0];
   return p ? { lat: p.lat, lng: p.lng } : { lat: pickup.lat + 0.011, lng: pickup.lng - 0.009 };
 }

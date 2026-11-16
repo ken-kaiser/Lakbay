@@ -1,4 +1,8 @@
-name: CI/CD
+name: CI
+
+# Checks every push and pull request. Deployment is handled by GitHub Pages
+# itself (Settings → Pages → "Deploy from a branch": main / root), which
+# publishes https://ken-kaiser.github.io/Lakbay/ automatically after each push.
 
 on:
   push:
@@ -9,10 +13,6 @@ on:
 
 permissions:
   contents: read
-
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   check:
@@ -25,28 +25,3 @@ jobs:
           node-version: 22
       - name: Syntax, service worker and link checks
         run: node .github/scripts/check.mjs
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: check
-    # Only deploy from main, never from pull requests
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Prepare site folder
-        run: |
-          mkdir _site
-          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4

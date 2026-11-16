@@ -122,3 +122,100 @@ export async function reverseGeocode(lat, lng) {
     return out;
   }
 }
+
+/* ---------- last known location ----------
+   The user's most recent GPS fix (with its reverse-geocoded name) is kept
+   in localStorage so every screen — pickup, suggestions, distances, map
+   picker — starts from where the user actually is instead of a hardcoded
+   sample point. */
+const LAST_LOC_KEY = 'lakbay:lastLocation';
+
+export function getLastLocation() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_LOC_KEY) || 'null');
+    return v && typeof v.lat === 'number' && typeof v.lng === 'number' ? v : null;
+  } catch (e) { return null; }
+}
+
+function saveLastLocation(loc) {
+  try { localStorage.setItem(LAST_LOC_KEY, JSON.stringify({ ...loc, at: Date.now() })); } catch (e) { /* noop */ }
+}
+
+/* GPS fix + area name. Resolves null when location is unavailable/denied.
+   Concurrent callers share one request. */
+let locating = null;
+export function locateUser(opts = {}) {
+  if (locating) return locating;
+  locating = (async () => {
+    const geo = await browserLocation(opts);
+    if (!geo) return null;
+    const place = await reverseGeocode(geo.lat, geo.lng);
+    const loc = {
+      name: place.name || 'Current location',
+      address: place.address,
+      city: place.city || place.area || '',
+      lat: geo.lat, lng: geo.lng,
+    };
+    saveLastLocation(loc);
+    return loc;
+  })().finally(() => { locating = null; });
+  return locating;
+}
+
+/* ---------- online place search (Photon / OpenStreetMap) ----------
+   Searches real places anywhere in the Philippines, ranked by closeness to
+   `near` (the user's location), so a passenger in Cebu sees Cebu results.
+   Returns [] when offline so the built-in list still works. */
+const PH_BBOX = '116.9,4.5,126.7,21.2';
+const searchCache = new Map();
+
+function photonCategory(p) {
+  const v = `${p.osm_key || ''}:${p.osm_value || ''}`;
+  if (/mall|department_store/.test(v)) return 'mall';
+  if (/aerodrome|airport|terminal/.test(v)) return 'airport';
+  if (/school|college|university/.test(v)) return 'school';
+  if (/hospital|clinic/.test(v)) return 'hospital';
+  if (/park/.test(v)) return 'park';
+  if (/place_of_worship|church/.test(v)) return 'church';
+  if (/restaurant|cafe|fast_food|food/.test(v)) return 'food';
+  if (/marketplace|supermarket/.test(v)) return 'market';
+  if (/office/.test(v)) return 'office';
+  if (/tourism|historic|attraction/.test(v)) return 'landmark';
+  return null;
+}
+
+export async function searchPlacesOnline(query, near, limit = 6) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  const bias = near ? `&lat=${near.lat.toFixed(4)}&lon=${near.lng.toFixed(4)}` : '';
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit + 4}&lang=en&bbox=${PH_BBOX}${bias}`;
+  if (searchCache.has(url)) return searchCache.get(url);
+  try {
+    const res = await fetchWithTimeout(url, 4500);
+    if (!res.ok) throw new Error('search http ' + res.status);
+    const json = await res.json();
+    const seen = new Set();
+    const out = [];
+    for (const f of (json && json.features) || []) {
+      const p = f.properties || {};
+      const c = f.geometry && f.geometry.coordinates;
+      if (!Array.isArray(c) || !p.name) continue;
+      const addrParts = [
+        [p.housenumber, p.street].filter(Boolean).join(' '),
+        p.district || p.locality,
+        p.city || p.county,
+        p.state,
+      ].filter(Boolean);
+      const address = [...new Set(addrParts)].join(', ') || 'Philippines';
+      const dedupe = `${p.name}|${p.city || ''}`.toLowerCase();
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      out.push({ id: null, name: p.name, address, lat: c[1], lng: c[0], category: photonCategory(p) });
+      if (out.length >= limit) break;
+    }
+    searchCache.set(url, out);
+    return out;
+  } catch (e) {
+    return [];
+  }
+}

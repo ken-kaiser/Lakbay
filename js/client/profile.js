@@ -5,7 +5,8 @@
    ========================================================================== */
 import { App } from '../app.js';
 import { Users, Prefs, SavedPlacesRepo, Store, Notifs } from '../storage.js';
-import { searchPlaces, DEFAULT_SAVED_PLACES, FAQS, getPlace } from '../data.js';
+import { searchPlaces, DEFAULT_SAVED_PLACES, FAQS, getPlace, haversineKm } from '../data.js';
+import { searchPlacesOnline, getLastLocation } from '../shared/geo.js';
 import { el, clear, qs } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
@@ -15,7 +16,7 @@ import { validate, attachLiveValidation, formatPhoneInput, phoneDisplay, isValid
 
 function ensureSavedPlaces(userId) {
   let list = SavedPlacesRepo.list(userId);
-  if (!list) { list = DEFAULT_SAVED_PLACES(userId); SavedPlacesRepo.save(userId, list); }
+  if (!list) { list = userId === 'demo-passenger' ? DEFAULT_SAVED_PLACES(userId) : []; SavedPlacesRepo.save(userId, list); }
   return list;
 }
 
@@ -146,9 +147,27 @@ function openPlaceModal(userId, existing) {
   const results = el('div', { class: 'cl-ac-search-results' });
   let chosen = existing && existing.placeId ? getPlace(existing.placeId) : null;
 
-  function paintResults() {
+  // Search real places near the user (any PH city); the built-in Metro
+  // Manila list is only a fallback when offline or for Manila users.
+  let paintToken = 0;
+  async function paintResults() {
+    const token = ++paintToken;
+    const here = getLastLocation();
+    const text = q.value.trim();
+    const nearby = (p) => !here || haversineKm(here, p) <= 25;
+    let list = [];
+    if (text.length >= 2) {
+      const online = await searchPlacesOnline(text, here, 6);
+      if (token !== paintToken) return;
+      list = online.length ? online : searchPlaces(text, 6).filter(nearby);
+    } else if (!text) {
+      list = searchPlaces('mall', 6).filter(nearby);
+    }
     clear(results);
-    const list = q.value.trim() ? searchPlaces(q.value, 6) : searchPlaces('mall', 6);
+    if (!list.length) {
+      results.appendChild(el('p', { class: 't-small', style: 'padding:8px 4px' },
+        text ? 'No matching places. Try another name.' : 'Type a place name, street, or barangay to search.'));
+    }
     list.forEach((p) => {
       const row = el('button', { class: 'cl-ac-item', type: 'button' },
         el('span', { class: 'li-icon' }, el('i', { 'data-lucide': 'map-pin' })),
@@ -163,13 +182,14 @@ function openPlaceModal(userId, existing) {
     });
     Icons.refresh(results);
   }
-  q.addEventListener('input', paintResults);
+  let typeTimer = null;
+  q.addEventListener('input', () => { clearTimeout(typeTimer); typeTimer = setTimeout(paintResults, 250); });
   paintResults();
 
   body.append(
     el('div', { class: 'field' }, el('label', { for: 'sp-label' }, 'Label'), labelSel),
     el('div', { class: 'field' }, el('label', { for: 'sp-q' }, 'Place'), q,
-      el('small', { class: 'input-hint' }, 'Search covers popular spots near your area.')),
+      el('small', { class: 'input-hint' }, 'Searches places near your current location.')),
     results,
   );
 
@@ -187,7 +207,7 @@ function openPlaceModal(userId, existing) {
             id: existing ? existing.id : 'sp-' + Date.now().toString(36),
             label: labelSel.value,
             icon: labelSel.value === 'Home' ? 'house' : labelSel.value === 'Work' ? 'briefcase' : 'star',
-            placeId: chosen.id, name: chosen.name, address: chosen.address, lat: chosen.lat, lng: chosen.lng,
+            placeId: chosen.id || null, name: chosen.name, address: chosen.address, lat: chosen.lat, lng: chosen.lng,
           };
           const idx = list.findIndex((s) => s.id === entry.id);
           if (idx >= 0) list[idx] = entry; else list.push(entry);

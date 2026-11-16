@@ -251,9 +251,13 @@ export function searchPlaces(query, limit = 8) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.place);
 }
 
-export function nearbyPlaces(latlng, limit = 6) {
+/* maxKm: skip places farther than this. The built-in list only covers
+   Metro Manila, so callers outside Manila pass a limit to avoid
+   "nearby" suggestions hundreds of kilometres away. */
+export function nearbyPlaces(latlng, limit = 6, maxKm = Infinity) {
   return PLACES
     .map((p) => ({ p, d: haversineKm(latlng, p) }))
+    .filter((x) => x.d <= maxKm)
     .sort((a, b) => a.d - b.d)
     .slice(0, limit)
     .map((x) => x.p);

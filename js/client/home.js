@@ -15,16 +15,22 @@ import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
 import { Modal, confirmDialog } from '../shared/modal.js';
 import { createMap } from '../shared/map.js';
-import { browserLocation, reverseGeocode } from '../shared/geo.js';
+import { locateUser, getLastLocation } from '../shared/geo.js';
 import { peso, dateTime, firstNameOf, statusLabel, statusEl } from '../shared/format.js';
 import { promoRail } from '../shared/promo.js';
 
-/* Sample current location (Makati CBD) — also the geolocation fallback */
+/* Sample location (Makati CBD) — used ONLY when the browser never gave us a
+   GPS fix (permission denied / unsupported). */
 export const SAMPLE_LOC = {
   name: 'Makati CBD area',
   address: 'Ayala Ave, Bel-Air, Makati City',
   lat: 14.5587, lng: 121.0196,
 };
+
+/* Best known pickup: last real GPS fix, else the sample point. */
+export function currentLoc() {
+  return getLastLocation() || SAMPLE_LOC;
+}
 
 export function avatarEl(person, size = '') {
   const span = document.createElement('span');
@@ -60,7 +66,9 @@ function encodePoint(p) {
 function ensureSavedPlaces(userId) {
   let list = SavedPlacesRepo.list(userId);
   if (!list) {
-    list = DEFAULT_SAVED_PLACES(userId);
+    // Sample Home/Work (Quezon City, Makati) only for the Manila demo account;
+    // real users start empty and add their own places.
+    list = userId === 'demo-passenger' ? DEFAULT_SAVED_PLACES(userId) : [];
     SavedPlacesRepo.save(userId, list);
   }
   return list;
@@ -152,7 +160,8 @@ function activeRideCard(b) {
 
 /* ---------- schedule-a-ride modal ---------- */
 function openScheduleModal(userId, saved) {
-  const nearby = nearbyPlaces(SAMPLE_LOC, 6);
+  const here = state.located || currentLoc();
+  const nearby = nearbyPlaces(here, 6, 25);
   const options = [
     ...saved.map((s) => ({ key: 'sp:' + s.id, label: `${s.label} — ${s.name}`, place: s })),
     ...nearby.map((p) => ({ key: 'pl:' + p.id, label: `${p.name} — ${p.address}`, place: p })),
@@ -175,7 +184,10 @@ function openScheduleModal(userId, saved) {
     ),
   );
   const hint = el('p', { class: 't-xs' },
-    'Pickup defaults to your current location (Makati CBD area). We will match you with a driver at the scheduled time.');
+    `Pickup defaults to your current location (${here.name}). We will match you with a driver at the scheduled time.`);
+  if (!options.length) {
+    body.appendChild(el('p', { class: 't-small' }, 'No destinations yet. Add a saved place first, or book now from the search screen.'));
+  }
   const dateRow = el('div', { class: 'cl-form-2col' }, dateField, timeField);
   body.append(dateRow, destField, hint);
 
@@ -197,7 +209,7 @@ function openScheduleModal(userId, saved) {
           const opt = options.find((o) => o.key === key);
           const dest = opt ? opt.place : null;
           if (!dest) { Toast.error('No destination', 'Pick a destination for this ride.'); return; }
-          const km = Math.round(haversineKm(SAMPLE_LOC, dest) * 10) / 10;
+          const km = Math.round(haversineKm(here, dest) * 10) / 10;
           const mins = estimateDurationMin(km);
           const cat = 'car';
           const booking = {
@@ -210,7 +222,7 @@ function openScheduleModal(userId, saved) {
             passengerRating: App.user.rating || 5,
             riderId: null, rider: null, riderSource: null,
             category: cat,
-            pickup: { placeId: null, name: SAMPLE_LOC.name, address: SAMPLE_LOC.address, lat: SAMPLE_LOC.lat, lng: SAMPLE_LOC.lng, instructions: '' },
+            pickup: { placeId: null, name: here.name, address: here.address, lat: here.lat, lng: here.lng, instructions: '' },
             dropoff: { placeId: dest.id || null, name: dest.name, address: dest.address, lat: dest.lat, lng: dest.lng, instructions: '' },
             distanceKm: km, durationMin: mins, route: [], // filled below after import-free generateRoute
             fare: estimateFare(cat, km, mins),
@@ -221,7 +233,7 @@ function openScheduleModal(userId, saved) {
             createdAt: Date.now(), scheduledFor: ts,
             messages: [], rating: null, receipt: null,
           };
-          booking.route = generateRoute(SAMPLE_LOC, dest);
+          booking.route = generateRoute(here, dest);
           Bookings.create(booking);
           Notifs.push({
             userId, role: 'passenger',
@@ -257,14 +269,20 @@ export const homeView = {
     chip.addEventListener('click', () => App.navigate('search', { query: { focus: 'pickup' } }));
     App.setHeaderLeft(chip);
     Icons.refresh(chip);
+    const known = getLastLocation();
+    if (known) {
+      state.located = known;
+      chipText.textContent = `Current location · ${known.city || known.address}`;
+    }
     (async () => {
-      const geo = await browserLocation({ timeout: 6000 });
-      const place = geo ? await reverseGeocode(geo.lat, geo.lng) : null;
-      if (geo) {
-        state.located = { name: place.name, address: place.address, lat: geo.lat, lng: geo.lng };
-        const area = place.city || place.area || place.address;
-        chipText.textContent = `Current location · ${area}`;
-      } else {
+      const loc = await locateUser({ timeout: 6000 });
+      if (loc) {
+        state.located = loc;
+        chipText.textContent = `Current location · ${loc.city || loc.address}`;
+        // show the real place as the pickup instead of the sample text
+        const pv = qs('[data-role="pickup-value"]', root);
+        if (pv) pv.textContent = loc.name;
+      } else if (!known) {
         chipText.textContent = 'Current location · sample area';
       }
       Icons.refresh(chip);
@@ -297,7 +315,7 @@ export const homeView = {
       el('i', { 'data-lucide': 'circle-dot' }),
       el('span', { class: 'cl-rr-body' },
         el('span', { class: 'cl-rr-label' }, 'Pickup'),
-        el('span', { class: 'cl-rr-value', 'data-role': 'pickup-value' }, `${SAMPLE_LOC.name}`),
+        el('span', { class: 'cl-rr-value', 'data-role': 'pickup-value' }, known ? known.name : 'Locating you\u2026'),
       ),
     );
     const destRow = el('button', { class: 'cl-route-row', type: 'button' },
@@ -330,7 +348,7 @@ export const homeView = {
     const recenterFab = el('button', { class: 'map-fab', type: 'button', 'aria-label': 'Recenter map on pickup' },
       el('i', { 'data-lucide': 'crosshair' }));
     recenterFab.addEventListener('click', () => {
-      const pos = state.located || SAMPLE_LOC;
+      const pos = state.located || currentLoc();
       if (state.map) { state.map.setView(pos, 15); state.map.setMarker('pickup', pos, 'pickup', { label: 'Pickup' }); }
     });
     mapFab.appendChild(recenterFab);
@@ -343,6 +361,12 @@ export const homeView = {
       el('a', { class: 'cl-section-more', href: '#/profile?tab=places' }, 'Manage'),
     );
     const chipRow = el('div', { class: 'cl-hscroll', role: 'list' });
+    if (!saved.length) {
+      const addChip = el('button', { class: 'cl-place-chip', type: 'button', role: 'listitem' },
+        el('i', { 'data-lucide': 'plus' }), el('span', { class: 'clamp-1' }, 'Add Home or Work'));
+      addChip.addEventListener('click', () => App.navigate('profile', { query: { tab: 'places' } }));
+      chipRow.appendChild(addChip);
+    }
     saved.forEach((sp) => {
       const chipBtn = el('button', { class: 'cl-place-chip', type: 'button', role: 'listitem' },
         el('i', { 'data-lucide': sp.icon || 'star' }),
@@ -350,7 +374,7 @@ export const homeView = {
       );
       chipBtn.addEventListener('click', () => {
         pushRecent(userId, sp);
-        App.navigate('rides', { query: { from: encodePoint({ ...SAMPLE_LOC, placeId: null }), to: sp.placeId || encodePoint(sp) } });
+        App.navigate('rides', { query: { from: encodePoint({ ...(state.located || currentLoc()), placeId: null }), to: sp.placeId || encodePoint(sp) } });
       });
       chipRow.appendChild(chipBtn);
     });
@@ -376,7 +400,7 @@ export const homeView = {
           el('i', { 'data-lucide': 'chevron-right', style: 'width:16px;height:16px;color:var(--c-ink-4);flex-shrink:0' }),
         );
         item.addEventListener('click', () => {
-          App.navigate('rides', { query: { from: encodePoint({ ...SAMPLE_LOC, placeId: null }), to: r.placeId || encodePoint(r) } });
+          App.navigate('rides', { query: { from: encodePoint({ ...(state.located || currentLoc()), placeId: null }), to: r.placeId || encodePoint(r) } });
         });
         list.appendChild(item);
       });
@@ -438,15 +462,13 @@ export const homeView = {
        centers on the user's real location (GPS) and falls back to the sample */
     setTimeout(async () => {
       if (!mapBox.isConnected) return;
-      const geo = await browserLocation({ timeout: 6000 });
-      const pos = geo
-        ? { lat: geo.lat, lng: geo.lng }
-        : { ...SAMPLE_LOC };
-      if (geo && !state.located) {
-        const place = await reverseGeocode(geo.lat, geo.lng);
-        state.located = { name: place.name, address: place.address, lat: geo.lat, lng: geo.lng };
+      const geo = (await locateUser({ timeout: 6000 })) || getLastLocation();
+      if (!mapBox.isConnected) return;
+      const pos = geo ? { lat: geo.lat, lng: geo.lng } : { ...SAMPLE_LOC };
+      if (geo) state.located = geo;
+      else {
         const pv = qs('[data-role="pickup-value"]', root);
-        if (pv && pv.classList.contains('placeholder') !== true) { /* leave pickup text as-is */ }
+        if (pv) pv.textContent = `${SAMPLE_LOC.name} (sample)`;
       }
       try {
         const m = createMap(mapBox, { center: [pos.lat, pos.lng], zoom: geo ? 15 : 14, interactive: true });
@@ -491,17 +513,13 @@ function locateMe(root) {
     Toast.info('Location unavailable', 'Using your sample location.');
     return;
   }
-  navigator.geolocation.getCurrentPosition(
-    async (p) => {
-      const place = await reverseGeocode(p.coords.latitude, p.coords.longitude);
-      const pos = { name: place.name || 'Current location (GPS)', address: place.address, lat: p.coords.latitude, lng: p.coords.longitude };
-      apply(pos, pos.name);
-      Toast.success('Location found', `Map centered on ${place.city || place.address || 'your position'}.`);
-    },
-    () => {
+  locateUser({ timeout: 6000, maximumAge: 60000 }).then((loc) => {
+    if (loc) {
+      apply(loc, loc.name);
+      Toast.success('Location found', `Map centered on ${loc.city || loc.address || 'your position'}.`);
+    } else {
       apply({ ...SAMPLE_LOC }, `${SAMPLE_LOC.name} (sample)`);
-      Toast.info('Location unavailable', 'Using your sample location.');
-    },
-    { timeout: 6000, maximumAge: 60000, enableHighAccuracy: false },
-  );
+      Toast.info('Location unavailable', 'Allow location access in your browser to use your real position.');
+    }
+  });
 }

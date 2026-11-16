@@ -17,11 +17,11 @@ import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
 import { Modal } from '../shared/modal.js';
 import { createMap } from '../shared/map.js';
-import { reverseGeocode } from '../shared/geo.js';
+import { locateUser, searchPlacesOnline, getLastLocation } from '../shared/geo.js';
 import { peso } from '../shared/format.js';
 import { tickValue } from '../shared/motion.js';
 import { formatDistanceKm } from '../data.js';
-import { SAMPLE_LOC } from './home.js';
+import { SAMPLE_LOC, currentLoc } from './home.js';
 
 const DRAFT_KEY = 'lakbay:draft';
 
@@ -67,18 +67,38 @@ function placeIcon(place) {
 }
 
 /* ---------- autocomplete list builder ---------- */
-function buildSuggestionList({ userId, query, container, onPick }) {
-  clear(container);
+/* Suggestions are ranked around `origin` (the user's real location).
+   Search uses the online OpenStreetMap index (any PH city), falling back to
+   the built-in Metro Manila list only when it's offline. Built-in places are
+   only offered as "nearby" when they're actually within 25 km. */
+let suggestToken = 0;
+async function buildSuggestionList({ userId, query, container, onPick, origin }) {
+  const token = ++suggestToken;
   const q = (query || '').trim();
+  const here = origin || currentLoc();
   const saved = SavedPlacesRepo.list(userId) || [];
   const recents = Prefs.get(userId, 'recentPlaces', []);
-  const near = nearbyPlaces(SAMPLE_LOC, 5);
+  const near = nearbyPlaces(here, 5, 25);
+
+  let results = [];
+  if (q) {
+    // Built-in list only if those places are close to the user
+    const local = searchPlaces(q, 8).filter((p) => haversineKm(here, p) <= 25);
+    if (q.length >= 2) {
+      clear(container);
+      container.appendChild(el('div', { class: 'cl-ac-head' }, el('i', { 'data-lucide': 'loader' }), 'Searching places near you\u2026'));
+      Icons.refresh(container);
+    }
+    const online = await searchPlacesOnline(q, here, 8);
+    if (token !== suggestToken) return; // a newer keystroke superseded this one
+    results = online.length ? [...local, ...online].slice(0, 8) : searchPlaces(q, 8).filter((p) => haversineKm(here, p) <= 25 || !getLastLocation());
+  }
+  clear(container);
 
   const groups = [];
-  const results = q ? searchPlaces(q, 8) : [];
 
   if (results.length) {
-    groups.push({ head: 'Search results', icon: 'search', items: results.map((p) => ({ key: 'pl:' + p.id, title: p.name, sub: p.address, icon: placeIcon(p), place: p })) });
+    groups.push({ head: 'Search results', icon: 'search', items: results.map((p, i) => ({ key: 'pl:' + (p.id || i), title: p.name, sub: p.address, icon: placeIcon(p), place: p })) });
   }
   if (!q && saved.length) {
     groups.push({ head: 'Saved places', icon: 'star', items: saved.map((s) => ({ key: 'sp:' + s.id, title: `${s.label} · ${s.name}`, sub: s.address, icon: s.icon || 'star', place: s })) });
@@ -87,15 +107,17 @@ function buildSuggestionList({ userId, query, container, onPick }) {
     groups.push({ head: 'Recent', icon: 'history', items: recents.slice(0, 4).map((r) => ({ key: 'rc:' + r.name, title: r.name, sub: r.address, icon: 'history', place: r })) });
   }
   if (!q) {
-    groups.push({ head: 'Nearby', icon: 'map-pin', items: near.map((p) => ({ key: 'nb:' + p.id, title: p.name, sub: p.address, icon: placeIcon(p), place: p })) });
+    if (near.length) groups.push({ head: 'Nearby', icon: 'map-pin', items: near.map((p) => ({ key: 'nb:' + p.id, title: p.name, sub: p.address, icon: placeIcon(p), place: p })) });
   }
 
   if (!groups.length) {
     container.appendChild(el('div', { class: 'empty', style: 'padding:24px 16px' },
       el('img', { class: 'empty-img', src: 'assets/illustrations/empty-search.png', alt: '',
         onerror: (e) => e.target.remove() }),
-      el('h4', {}, 'No matching places'),
-      el('p', {}, 'Try a mall, terminal, street, or barangay name — or pick a spot on the map below.'),
+      el('h4', {}, q ? 'No matching places' : 'Where to?'),
+      el('p', {}, q
+        ? 'Try a mall, terminal, street, or barangay name — or use "Choose on map".'
+        : 'Type a mall, street, or barangay to search places near you.'),
     ));
     Icons.refresh(container);
     return;
@@ -104,7 +126,7 @@ function buildSuggestionList({ userId, query, container, onPick }) {
   groups.forEach((g) => {
     container.appendChild(el('div', { class: 'cl-ac-head' }, el('i', { 'data-lucide': g.icon }), g.head));
     g.items.forEach((item) => {
-      const dist = haversineKm(SAMPLE_LOC, item.place);
+      const dist = haversineKm(here, item.place);
       const row = el('button', { class: 'cl-ac-item', type: 'button' },
         el('span', { class: 'li-icon' }, el('i', { 'data-lucide': item.icon })),
         el('span', { class: 'li-body' },
@@ -121,7 +143,8 @@ function buildSuggestionList({ userId, query, container, onPick }) {
 }
 
 /* ---------- choose-on-map modal ---------- */
-function openMapPicker({ onPick }) {
+function openMapPicker({ onPick, center }) {
+  const c = center || currentLoc();
   const mapBox = el('div', { class: 'cl-map-pick' });
   const body = el('div', {},
     mapBox,
@@ -144,7 +167,7 @@ function openMapPicker({ onPick }) {
     onClose: () => { if (mapApi) mapApi.destroy(); },
   });
   setTimeout(() => {
-    mapApi = createMap(mapBox, { center: [SAMPLE_LOC.lat, SAMPLE_LOC.lng], zoom: 15 });
+    mapApi = createMap(mapBox, { center: [c.lat, c.lng], zoom: 15 });
     if (!mapApi) return;
     mapApi.map.on('click', (e) => {
       const pos = { name: 'Dropped pin', address: 'Custom map location', lat: e.latlng.lat, lng: e.latlng.lng };
@@ -163,7 +186,7 @@ const searchView = {
   render(root, { query }) {
     const userId = App.user.id;
     const draft = loadDraft();
-    const draftPickup = draft.pickup || { ...SAMPLE_LOC, placeId: null };
+    const draftPickup = draft.pickup || { ...currentLoc(), placeId: null };
     const draftDrop = draft.dropoff || null;
     App.setHeader('Plan your ride', 'Set your pickup and destination');
 
@@ -240,6 +263,8 @@ const searchView = {
         [pickAc, dropAc].forEach((p2) => { if (p2 !== panel) p2.style.display = 'none'; });
         buildSuggestionList({
           userId, query: browseQuery, container: panel,
+          // rank destinations around the chosen pickup; pickups around the user
+          origin: isPickup ? currentLoc() : (pickup || currentLoc()),
           onPick: (place) => {
             const pt = { placeId: place.placeId || place.id || null, name: place.name, address: place.address, lat: place.lat, lng: place.lng };
             setPoint(pt);
@@ -253,7 +278,8 @@ const searchView = {
         f.block.classList.add('focused');
       };
       f.input.addEventListener('focus', showPanel);
-      f.input.addEventListener('input', showPanel);
+      let typeTimer = null;
+      f.input.addEventListener('input', () => { clearTimeout(typeTimer); typeTimer = setTimeout(showPanel, 250); });
       f.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const first = panel.querySelector('.cl-ac-item'); if (first) first.click(); } });
       f.block.addEventListener('focusout', () => { hideTimer = setTimeout(() => { panel.style.display = 'none'; f.block.classList.remove('focused'); }, 180); });
       f.clearBtn.addEventListener('click', () => {
@@ -275,25 +301,21 @@ const searchView = {
     gpsBtn.addEventListener('click', () => {
       if (!navigator.geolocation) { Toast.info('Location unavailable', 'Your browser does not expose GPS. Pick a place instead.'); return; }
       gpsBtn.disabled = true;
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-          pickup = { name: place.name || 'Current location (GPS)', address: place.address, lat: pos.coords.latitude, lng: pos.coords.longitude };
+      locateUser({ timeout: 7000, maximumAge: 60000 }).then((loc) => {
+        gpsBtn.disabled = false;
+        if (loc) {
+          pickup = { name: loc.name, address: loc.address, lat: loc.lat, lng: loc.lng };
           saveDraft({ pickup }); paintPickupValue(); refreshFindBtn();
-          gpsBtn.disabled = false;
-          Toast.success('Location found', `Pickup set to ${place.city || place.address || 'your GPS position'}.`);
-        },
-        () => {
-          gpsBtn.disabled = false;
+          Toast.success('Location found', `Pickup set to ${loc.city || loc.address || 'your GPS position'}.`);
+        } else {
           pickup = { ...SAMPLE_LOC, placeId: null }; saveDraft({ pickup }); paintPickupValue(); refreshFindBtn();
           Toast.info('Using sample location', 'Location permission was denied, so we set the sample point.');
-        },
-        { timeout: 7000, maximumAge: 60000, enableHighAccuracy: false },
-      );
+        }
+      });
     });
 
     mapBtn.addEventListener('click', () => {
-      openMapPicker({ onPick: (pt) => { dropoff = pt; saveDraft({ dropoff: pt }); paintDropValue(); refreshFindBtn(); } });
+      openMapPicker({ center: pickup || currentLoc(), onPick: (pt) => { dropoff = pt; saveDraft({ dropoff: pt }); paintDropValue(); refreshFindBtn(); } });
     });
 
     wrap.appendChild(findBtn);

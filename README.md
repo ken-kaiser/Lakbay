@@ -1,6 +1,6 @@
 # Lakbay — Ride-Hailing Web Application (Prototype)
 
-[![CI/CD](https://github.com/ken-kaiser/Lakbay/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ken-kaiser/Lakbay/actions/workflows/ci-cd.yml)
+[![CI](https://github.com/ken-kaiser/Lakbay/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ken-kaiser/Lakbay/actions/workflows/ci-cd.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B6F500.svg)](LICENSE)
 
 **Live demo:** https://ken-kaiser.github.io/Lakbay/
@@ -63,14 +63,14 @@ extension also works.
 
 ## CI/CD
 
-Every push and pull request to `main` runs `.github/workflows/ci-cd.yml`:
-
-1. **Check:** `node .github/scripts/check.mjs` syntax-checks every JS file,
-   confirms every file in the service worker precache list exists, and
-   verifies local links in the HTML pages. You can run it locally the same way
-   (Node 22+).
-2. **Deploy:** if the checks pass on `main`, the site is published to GitHub
-   Pages.
+- **CI:** every push and pull request to `main` runs
+  `.github/workflows/ci-cd.yml`, which calls `node .github/scripts/check.mjs`.
+  It syntax-checks every JS file, confirms every file in the service worker
+  precache list exists, and verifies local links in the HTML pages. You can
+  run it locally the same way (Node 22+).
+- **CD:** GitHub Pages is set to "Deploy from a branch" (`main`, root), so each
+  push to `main` is published to https://ken-kaiser.github.io/Lakbay/
+  automatically.
 
 When you change cached files, bump `VERSION` in `sw.js` so installed copies
 pick up the update.

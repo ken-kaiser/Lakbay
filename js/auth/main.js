@@ -217,6 +217,8 @@ function otpRow() {
   return row;
 }
 
+const OTP_TTL_MS = 5 * 60000; // verification codes last 5 minutes
+
 function makeOtp(email) {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   Store.set('otp:' + email.toLowerCase(), { code, at: Date.now() });
@@ -225,7 +227,7 @@ function makeOtp(email) {
 function checkOtp(email, code) {
   const rec = Store.get('otp:' + email.toLowerCase(), null);
   if (!rec) return false;
-  if (Date.now() - rec.at > 60000) return false;
+  if (Date.now() - rec.at > OTP_TTL_MS) return false;
   return rec.code === String(code);
 }
 
@@ -705,8 +707,10 @@ function renderRegister(params) {
   });
   const meterRow = el('div', { class: 'cl-meter-row' }, meterLabel, meterVal);
   const terms = el('input', { class: 'check-input', id: 'rg-terms', name: 'terms', type: 'checkbox' });
-  const fTerms = el('div', { class: 'check' }, terms,
-    el('label', { for: 'rg-terms' }, 'I agree to the Terms & the Data Privacy notice'));
+  // Wrapped in .field so validation can show "must be checked" under it
+  const fTerms = el('div', { class: 'field' },
+    el('div', { class: 'check' }, terms,
+      el('label', { for: 'rg-terms' }, 'I agree to the Terms & the Data Privacy notice')));
 
   const row2a = el('div', { class: 'cl-form-2col' }, fFirst, fLast);
   form.append(row2a, fEmail, fPhone, fPw, meter, meterRow, fPw2, fTerms);
@@ -739,7 +743,11 @@ function renderRegister(params) {
         submit.disabled = false; submit.classList.remove('btn--loading');
         return;
       }
-      const user = await Users.create({
+      // Don't save the account yet: it's created only after the code is
+      // verified, so an abandoned or expired verification doesn't leave a
+      // half-made account that blocks signing up again with this email.
+      state.reset = null;
+      state.pending = {
         role,
         firstName: res.values.firstName.trim(),
         lastName: res.values.lastName.trim(),
@@ -747,11 +755,11 @@ function renderRegister(params) {
         phone: phoneDisplay(res.values.phone),
         password: res.values.password,
         extra: role === 'rider' ? { verification: { status: 'not_submitted', docs: {} } } : {},
-      });
-      state.pending = user;
-      state.otpEmail = user.email;
-      state.otp = makeOtp(user.email);
-      Toast.success('Account created', 'Verify your mobile number to continue.');
+      };
+      state.otpEmail = state.pending.email;
+      state.otp = makeOtp(state.pending.email);
+      Toast.info('Almost done', 'Verify your mobile number to create your account.');
+      submit.disabled = false; submit.classList.remove('btn--loading');
       go('otp');
     } catch (ex) {
       err.style.display = 'flex';
@@ -782,7 +790,7 @@ function renderOtp() {
 
   const demoBox = el('div', { class: 'lb-demo-box' },
     el('div', { class: 'row', style: 'gap:6px' }, el('i', { 'data-lucide': 'message-square-text' }), el('strong', {}, 'Verification code')),
-    el('p', { class: 't-xs' }, h`Your 6-digit code is `, el('strong', { class: 't-num' }, state.otp), '. It expires in 1 minute.'));
+    el('p', { class: 't-xs' }, h`Your 6-digit code is `, el('strong', { class: 't-num' }, state.otp), '. It expires in 5 minutes.'));
   const autofill = el('button', { class: 'btn btn--soft btn--sm', type: 'button' }, el('i', { 'data-lucide': 'wand-2' }), 'Autofill code');
   autofill.addEventListener('click', () => { row.fill(state.otp); Toast.info('Code filled', 'Press verify to continue.'); });
   demoBox.appendChild(autofill);
@@ -797,16 +805,26 @@ function renderOtp() {
   });
   const err = el('div', { class: 'cl-inline-error', style: 'display:none;justify-content:center' }, el('i', { 'data-lucide': 'circle-alert' }), el('span', {}));
 
-  verify.addEventListener('click', () => {
+  verify.addEventListener('click', async () => {
     const code = row.getCode();
     if (code.length < 6) { err.style.display = 'flex'; err.querySelector('span').textContent = 'Enter all six digits.'; return; }
     if (!checkOtp(email, code)) { err.style.display = 'flex'; err.querySelector('span').textContent = 'That code is invalid or expired. Resend a new one.'; return; }
     if (state.pending) {
-      Users.update(state.pending.id, { phoneVerified: true });
-      Session.set(Users.byId(state.pending.id));
-      Toast.success('Account verified!', 'Welcome to Lakbay.');
-      const u = Users.byId(state.pending.id);
-      setTimeout(() => redirectFor(u), 400);
+      verify.disabled = true;
+      let user;
+      try {
+        user = await Users.create({ ...state.pending, extra: { ...state.pending.extra, phoneVerified: true } });
+      } catch (ex) {
+        verify.disabled = false;
+        err.style.display = 'flex';
+        err.querySelector('span').textContent = ex.message || 'Could not create the account.';
+        return;
+      }
+      state.pending = null;
+      Store.remove('otp:' + email.toLowerCase());
+      Session.set(user);
+      Toast.success('Account created!', 'Welcome to Lakbay.');
+      setTimeout(() => redirectFor(user), 400);
     } else if (state.reset) {
       go('reset');
     }
@@ -844,6 +862,7 @@ function renderForgot() {
       err.querySelector('span').textContent = 'No account uses that email. Check the address or create a new account.';
       return;
     }
+    state.pending = null; // so the shared OTP screen runs the reset, not a sign-up
     state.reset = user.email;
     state.otpEmail = user.email;
     state.otp = makeOtp(user.email);
