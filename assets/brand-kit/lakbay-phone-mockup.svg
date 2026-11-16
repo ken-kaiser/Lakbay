@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 520" width="660" height="520" role="img" aria-label="Lakbay">
+  <defs>
+    <linearGradient id="rib" x1="0" y1="1" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#7FCC00"/><stop offset="0.55" stop-color="#B9F608"/><stop offset="1" stop-color="#D9FE55"/>
+    </linearGradient>
+    <linearGradient id="rib2" x1="0" y1="1" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#3F5A10"/><stop offset="1" stop-color="#86C800"/>
+    </linearGradient>
+    <filter id="psh" x="-60%" y="-200%" width="220%" height="500%"><feGaussianBlur stdDeviation="18"/></filter>
+    
+  <radialGradient id="PItile" cx="0.5" cy="0.26" r="0.95">
+    <stop offset="0" stop-color="#18231D"/><stop offset="1" stop-color="#0B120E"/>
+  </radialGradient>
+  <filter id="PIbig" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="46"/></filter>
+  
+  <linearGradient id="PIgf" x1="34" y1="2" x2="8" y2="36" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#CDFC2A"/><stop offset="1" stop-color="#BDF605"/>
+  </linearGradient>
+  <linearGradient id="PIgb" x1="40" y1="22" x2="24" y2="52" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#B5F127"/><stop offset="1" stop-color="#9EE413"/>
+  </linearGradient>
+  <clipPath id="PIcb"><path d="M 33.00 20.80 L 33.00 20.80 L 50.83 26.02 Q 56.20 27.60 52.28 31.60 L 49.22 34.74 Q 47.40 36.60 45.36 38.21 L 25.38 54.04 Q 22.40 56.40 22.91 52.63 L 24.96 37.58 Q 25.20 35.80 26.03 34.20 L 33.00 20.80 Z"/></clipPath>
+  <filter id="PIb1" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.2"/></filter>
+  <filter id="PIb2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1.6"/></filter>
+  </defs>
+  <rect width="660" height="520" rx="30" fill="#0D1712"/>
+  
+  <path d="M -30 470 C 140 420 180 300 340 250 C 440 218 520 150 700 120 L 700 210 C 540 240 470 300 360 340 C 250 380 160 470 -30 520 Z" fill="url(#rib)" opacity="0.95"/>
+  <path d="M -30 560 C 180 500 260 420 430 360 C 540 320 620 300 700 296 L 700 360 C 600 366 520 390 430 424 C 300 474 140 560 -30 600 Z" fill="url(#rib2)" opacity="0.8"/>
+  <ellipse cx="474" cy="480" rx="150" ry="26" fill="#000" opacity="0.35" filter="url(#psh)"/>
+  <rect x="348" y="52" width="252" height="436" rx="46" fill="#151C18" stroke="#2C3630" stroke-width="2"/>
+  <rect x="358" y="62" width="232" height="416" rx="38" fill="#0A100D"/>
+  <rect x="432" y="63" width="84" height="24" rx="12" fill="#050806"/>
+  <path d="M6.7620000000000005 -15.771Q8.4525 -15.771 9.639000000000001 -15.19875Q10.825500000000002 -14.6265 11.560500000000001 -13.61325Q12.2955 -12.6 12.6315 -11.27175Q12.967500000000001 -9.9435 12.967500000000001 -8.4525V-7.528499999999999Q12.967500000000001 -3.769499999999999 11.067 -1.8217499999999989Q9.166500000000001 0.12600000000000122 5.4915 0.12600000000000122Q4.6935 0.12600000000000122 4.000500000000001 0.0840000000000014Q3.307500000000001 0.04200000000000159 2.6144999999999996 -0.041999999999999815V-2.5409999999999986Q3.307500000000001 -2.4674999999999994 4.032000000000001 -2.4202499999999993Q4.756500000000001 -2.3729999999999993 5.596500000000001 -2.3729999999999993Q7.360500000000001 -2.3729999999999993 8.373750000000001 -2.9819999999999993Q9.387 -3.5909999999999993 9.81225 -4.77225Q10.2375 -5.9535 10.2375 -7.686V-9.061499999999999L10.909500000000001 -10.017Q10.8885 -8.410499999999999 10.269 -7.3447499999999994Q9.6495 -6.279 8.562750000000001 -5.7435Q7.476000000000001 -5.208 6.0585 -5.208Q4.431000000000001 -5.208 3.2707500000000005 -5.859Q2.1105 -6.51 1.4962499999999999 -7.665Q0.8819999999999997 -8.82 0.8819999999999997 -10.353Q0.8819999999999997 -11.9595 1.5907499999999999 -13.18275Q2.2995 -14.406 3.6172500000000003 -15.0885Q4.9350000000000005 -15.771 6.7620000000000005 -15.771ZM6.825 -13.272Q5.827500000000001 -13.272 5.13975 -12.904499999999999Q4.452 -12.536999999999999 4.095 -11.89125Q3.7379999999999995 -11.2455 3.7379999999999995 -10.395Q3.7379999999999995 -9.533999999999999 4.0845 -8.88825Q4.431000000000001 -8.2425 5.0977500000000004 -7.88025Q5.7645 -7.518 6.720000000000001 -7.518Q7.623 -7.518 8.36325 -7.843500000000001Q9.1035 -8.169 9.534 -8.8095Q9.964500000000001 -9.45 9.964500000000001 -10.4055Q9.964500000000001 -11.213999999999999 9.618 -11.864999999999998Q9.2715 -12.516 8.57325 -12.894Q7.875000000000001 -13.272 6.825 -13.272Z M15.424500000000002 0.0V-3.3600000000000003H18.7005V0.0ZM15.424500000000002 -7.245V-10.605H18.7005V-7.245Z M20.685000000000002 -3.1710000000000003V-6.394500000000001L26.680500000000002 -15.750000000000002L28.927500000000002 -14.217L23.6355 -5.9430000000000005L23.887500000000003 -5.523000000000001H33.306V-3.1710000000000003ZM28.707 0.0V-10.983H31.458000000000002V0.0Z M37.674 0.0V-13.482000000000001L38.598 -12.768H34.545V-15.33H40.635000000000005V0.0Z" transform="translate(378,92)" fill="#EAF2EA"/>
+  <rect x="522.0" y="85.5" width="4.4" height="6.5" rx="1.3" fill="#EAF2EA"/><rect x="528.6" y="81.7" width="4.4" height="10.3" rx="1.3" fill="#EAF2EA"/><rect x="535.2" y="77.9" width="4.4" height="14.1" rx="1.3" fill="#EAF2EA"/><rect x="541.8" y="74.1" width="4.4" height="17.9" rx="1.3" fill="#EAF2EA"/>
+  <rect x="554" y="76" width="27" height="14" rx="4.5" fill="none" stroke="#EAF2EA" stroke-opacity="0.5" stroke-width="1.6"/>
+  <rect x="556.5" y="78.5" width="16" height="9" rx="2" fill="#EAF2EA"/>
+  <rect x="582" y="80" width="2.6" height="6" rx="1.3" fill="#EAF2EA" fill-opacity="0.5"/>
+  <g transform="translate(414,172) scale(0.234375)">
+    
+  <rect width="512" height="512" rx="118" fill="url(#PItile)"/>
+  <ellipse cx="256" cy="330" rx="190" ry="170" fill="#B6F500" opacity="0.3" filter="url(#PIbig)"/>
+  <ellipse cx="250" cy="400" rx="95" ry="80" fill="#B6F500" opacity="0.38" filter="url(#PIbig)"/>
+  <g transform="translate(108.34,111.00) scale(5.35)">
+  <path d="M 33.00 20.80 L 33.00 20.80 L 50.83 26.02 Q 56.20 27.60 52.28 31.60 L 49.22 34.74 Q 47.40 36.60 45.36 38.21 L 25.38 54.04 Q 22.40 56.40 22.91 52.63 L 24.96 37.58 Q 25.20 35.80 26.03 34.20 L 33.00 20.80 Z" fill="url(#PIgb)"/>
+  <g clip-path="url(#PIcb)">
+    <path d="M 33.00 20.80 Q 28.15 29.30 25.20 35.80" fill="none" stroke="#132408" stroke-width="9" stroke-linecap="round" opacity="0.3" filter="url(#PIb1)"/>
+    <path d="M 33.00 20.80 Q 28.15 29.30 25.20 35.80" fill="none" stroke="#0E1D06" stroke-width="3.6" stroke-linecap="round" opacity="0.3" filter="url(#PIb2)"/>
+  </g>
+  <path d="M 4.25 30.66 Q -1.00 29.40 2.85 25.61 L 26.32 2.53 Q 29.60 -0.70 34.20 -0.70 L 40.20 -0.70 Q 44.40 -0.70 42.43 3.01 L 34.12 18.68 Q 33.00 20.80 31.96 22.96 L 25.75 35.80 L 25.75 35.80 L 4.25 30.66 Z" fill="url(#PIgf)"/></g>
+  </g>
+  <rect x="358" y="62" width="232" height="416" rx="38" fill="none" stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="1.5"/>
+</svg>

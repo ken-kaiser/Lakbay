@@ -1,0 +1,33 @@
+{
+  "name": "Lakbay — Your ride, anywhere in the city",
+  "short_name": "Lakbay",
+  "description": "Book rides across the city or drive and earn with the Lakbay rider app.",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101A17",
+  "theme_color": "#101A17",
+  "categories": ["travel", "navigation"],
+  "icons": [
+    { "src": "assets/logo/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/logo/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/logo/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/logo/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book a ride",
+      "short_name": "Book",
+      "url": "./client.html",
+      "icons": [{ "src": "assets/logo/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Driver dashboard",
+      "short_name": "Drive",
+      "url": "./rider.html",
+      "icons": [{ "src": "assets/logo/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

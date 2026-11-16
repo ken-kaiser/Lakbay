@@ -1,0 +1,313 @@
+/* ==========================================================================
+   Lakbay — Rider app styles (rider.html)
+   Mobile-first, prefixed `rd-`. rider.html loads global + components + this
+   file only, so rider-view scaffolding (`cl-` classes referenced by the
+   rider views) is defined here, re-tuned to the shared token system.
+   ========================================================================== */
+
+/* ---------- generic stack ---------- */
+.rd-stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* ---------- earnings period metrics — one card, divided columns ---------- */
+.earn-metrics {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0; overflow: hidden;
+}
+.earn-metric {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  padding: 15px 16px 16px;
+  border-left: 1px solid var(--c-line);
+}
+.earn-metric:first-child { border-left: 0; }
+.earn-metric-value {
+  font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.earn-metric-sub {
+  font-size: var(--fs-xs); color: var(--c-ink-4);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.earn-metric--em { background: var(--c-primary-softer); }
+.earn-metric--em .earn-metric-value { color: var(--c-primary-deep); }
+@media (max-width: 767px) {
+  .earn-metrics { grid-template-columns: 1fr 1fr; }
+  .earn-metric { padding: 13px 14px 14px; }
+  .earn-metric-value { font-size: 19px; }
+  .earn-metric:nth-child(even) { border-left: 1px solid var(--c-line); }
+  .earn-metric:nth-child(n+3) { border-top: 1px solid var(--c-line); }
+  .earn-metric--em { background: transparent; }
+  .earn-metric--em .earn-metric-value { color: var(--c-primary-ink); }
+}
+
+/* ---------- view scaffolding (section titles, strips, scrollers) ---------- */
+.cl-section-title {
+  font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 8px;
+}
+.cl-section-title i, .cl-section-title svg { width: 17px; height: 17px; color: var(--c-primary-ink); }
+.cl-avail-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cl-scroll-y { max-height: 420px; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---------- today summary strip (single card, divided metrics) ----------
+   Pure typography: the money figure is the anchor, no icon containers. */
+.rd-today-card { display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
+.rd-today-metrics { display: flex; flex: 1 1 auto; flex-wrap: wrap; row-gap: 14px; min-width: 0; }
+.rd-metric {
+  flex: 1 1 110px; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  padding-left: 16px; border-left: 1px solid var(--c-line);
+}
+.rd-metric:first-child { padding-left: 0; border-left: 0; }
+.rd-metric-value {
+  font-size: var(--fs-xl); font-weight: 700; line-height: 1.2;
+  letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+}
+.rd-metric-value.tick { animation: stat-tick var(--motion-moderate) var(--ease-enter); }
+@media (max-width: 599px) {
+  .rd-today-card { gap: 14px; padding: 15px 16px; }
+  .rd-today-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 12px; }
+  .rd-metric { padding-left: 0; border-left: 0; }
+  .rd-metric:nth-child(even) { border-left: 1px solid var(--c-line); padding-left: 12px; }
+}
+@media (min-width: 600px) and (max-width: 1023px) {
+  .rd-today-metrics { flex-wrap: nowrap; }
+}
+@media (max-width: 639px) { .rd-today-card { padding: 14px 16px; } }
+
+/* ---------- online toggle card (clean card, status dot, switch right) ---------- */
+.rd-online-card { padding: 18px 16px; }
+@media (max-width: 599px) {
+  .rd-online-card .row { min-height: 56px; align-items: center; }
+  .rd-online-card .switch { min-width: 56px; min-height: 56px; }
+}
+.rd-online-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rd-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; position: relative;
+  background: var(--c-ink-4);
+}
+.rd-status-dot--online { background: var(--c-success); }
+.rd-status-dot--online::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 1.5px solid var(--c-success); opacity: 0.45;
+  animation: rd-dot-pulse 2s var(--ease-standard) infinite;
+}
+@keyframes rd-dot-pulse {
+  0% { transform: scale(0.55); opacity: 0.6; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+/* ---------- verification banner (flat, standalone amber icon) ---------- */
+.rd-verify-banner {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 13px 15px; border: 1px solid var(--c-warn-soft);
+  background: var(--c-surface); border-radius: var(--r-lg);
+  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
+}
+.rd-verify-banner:hover { border-color: var(--c-accent); box-shadow: var(--sh-1); }
+.rd-verify-banner:active { transform: scale(0.99); }
+.rd-verify-banner .rv-icon { display: inline-flex; align-items: center; justify-content: center; color: var(--c-accent-strong); flex-shrink: 0; }
+.rd-verify-banner .rv-icon i, .rd-verify-banner .rv-icon svg { width: 20px; height: 20px; }
+.rd-verify-banner .grow > span { display: block; }
+.rd-verify-banner .grow .t-small { margin-top: 2px; }
+.rd-verify-banner > i, .rd-verify-banner > svg { width: 18px; height: 18px; color: var(--c-ink-4); flex-shrink: 0; }
+.rd-verify-banner--pending { border-color: var(--c-line); }
+.rd-verify-banner--pending .rv-icon { color: var(--c-ink-3); }
+.rd-verify-banner--pending:hover { border-color: var(--c-line-strong); }
+
+/* ---------- demand map ---------- */
+.rd-map-dash { height: 240px; }
+@media (min-width: 1024px) { .rd-map-dash { height: 300px; } }
+
+/* ---------- incoming request card ---------- */
+.rd-request-enter { animation: lb-fade-up var(--motion-moderate) var(--ease-emphasized) both; }
+.rd-fare-hero {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--c-primary-soft);
+  background: var(--c-primary-softer); border-radius: var(--r-md);
+}
+.rd-fare-hero .rd-fare-value {
+  margin-top: 3px; font-size: var(--fs-2xl); font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.15;
+  font-variant-numeric: tabular-nums; color: var(--c-primary-deep);
+}
+.rd-fare-hero .t-xs { margin-top: 2px; display: block; }
+
+/* request countdown ring — thin amber ring, tabular number */
+.rd-count-ring {
+  --p: 100;
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+  background: conic-gradient(var(--c-accent) calc(var(--p) * 1%), var(--c-surface-3) 0);
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.rd-count-ring::before {
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  background: var(--c-surface);
+}
+.rd-count-num {
+  position: relative; font-weight: 650; font-size: 15px;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+
+/* ---------- verification document tiles ---------- */
+.rd-doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+@media (max-width: 380px) { .rd-doc-grid { grid-template-columns: 1fr; } }
+.rd-doc-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  border: 1.5px dashed var(--c-line-strong); border-radius: var(--r-md);
+  background: var(--c-surface); padding: 12px; text-align: left; min-height: 92px;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
+}
+.rd-doc-tile:hover { border-color: var(--c-primary); background: var(--c-primary-softer); }
+.rd-doc-tile:active { transform: scale(0.98); }
+.rd-doc-tile i, .rd-doc-tile svg { width: 19px; height: 19px; color: var(--c-ink-4); }
+.rd-doc-tile.ok { border-style: solid; border-color: var(--c-success); background: var(--c-success-soft); }
+.rd-doc-tile.ok i, .rd-doc-tile.ok svg { color: var(--c-success); }
+.rd-doc-label { font-size: var(--fs-sm); font-weight: 600; color: var(--c-ink); line-height: 1.3; }
+.rd-doc-sub { font-size: var(--fs-xs); color: var(--c-ink-3); max-width: 100%; }
+
+/* ---------- route line (direct-dot variant used by rider views) ---------- */
+.route-line-item > .rl-dot {
+  width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
+  border: 2.5px solid var(--c-primary); background: var(--c-surface);
+}
+.route-line-item > .rl-dot--end { border-color: var(--c-ink); background: var(--c-ink); }
+.route-line-item .rl-label {
+  display: block; font-size: 10.5px; font-weight: 650;
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--c-ink-4);
+}
+.route-line-item .rl-value {
+  display: block; font-size: var(--fs-md); font-weight: 600;
+  color: var(--c-ink); line-height: 1.35;
+}
+.route-line-item .rl-sub { display: block; margin-top: 1px; }
+
+/* ---------- trip view scaffolding ---------- */
+.cl-trip-layout { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cl-trip-map-wrap {
+  position: relative; height: 45vh; min-height: 300px;
+  border-radius: var(--r-lg); overflow: hidden;
+  border: 1px solid var(--c-line); background: var(--c-surface-2);
+}
+.cl-trip-map-wrap .leaflet-container { height: 100%; width: 100%; z-index: 1; }
+.cl-trip-banner { position: absolute; z-index: 500; left: 12px; right: 12px; bottom: 12px; }
+.cl-trip-eta {
+  display: flex; align-items: center; gap: 9px;
+  background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--c-line); border-radius: var(--r-full); box-shadow: var(--sh-2);
+  padding: 8px 14px; font-size: var(--fs-sm); font-weight: 600; color: var(--c-ink);
+}
+.cl-trip-eta i, .cl-trip-eta svg { width: 15px; height: 15px; color: var(--c-primary-ink); flex-shrink: 0; }
+.cl-trip-eta .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-trip-eta .t-num { flex-shrink: 0; }
+/* trip workflow actions: full-width, comfortable touch height on phones */
+@media (max-width: 599px) {
+  .rd-trip-actions .btn { width: 100%; min-height: 52px; }
+}
+.cl-trip-panel {
+  background: var(--c-surface); border: 1px solid var(--c-line);
+  border-radius: var(--r-xl); box-shadow: var(--sh-2);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.cl-trip-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 16px; border-bottom: 1px solid var(--c-line);
+}
+.cl-trip-panel-head h3 { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; }
+.cl-trip-panel-body { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 15px; }
+@media (min-width: 1024px) {
+  .cl-trip-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+  .cl-trip-map-wrap { height: calc(100vh - var(--header-h) - 60px); min-height: 480px; }
+  .cl-trip-panel { position: sticky; top: calc(var(--header-h) + 16px); }
+}
+.cl-driver-card { display: flex; align-items: center; gap: 12px; }
+.cl-driver-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cl-driver-name { font-size: var(--fs-md); font-weight: 650; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cl-driver-vehicle { font-size: var(--fs-xs); color: var(--c-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-driver-actions { display: flex; gap: 7px; }
+.cl-trip-progress { display: flex; flex-direction: column; gap: 6px; }
+.cl-trip-progress .progress { height: 9px; }
+.cl-trip-progress-row { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--c-ink-3); font-weight: 550; }
+
+/* ---------- rider chat pane ---------- */
+.cl-chat-pane {
+  display: flex; flex-direction: column; border: 1px solid var(--c-line);
+  border-radius: var(--r-lg); overflow: hidden; background: var(--c-surface-2);
+}
+.cl-chat-head {
+  display: flex; align-items: center; gap: 9px; padding: 9px 12px;
+  background: var(--c-surface); border-bottom: 1px solid var(--c-line);
+  font-size: var(--fs-sm); font-weight: 600;
+}
+.cl-chat-head i, .cl-chat-head svg { width: 15px; height: 15px; color: var(--c-primary-ink); }
+.cl-chat-thread-cl { height: 220px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+.cl-chat-compose {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px;
+  background: var(--c-surface); border-top: 1px solid var(--c-line);
+}
+.cl-chat-compose .input { min-height: 40px; }
+.cl-chat-compose .btn { width: 40px; min-height: 40px; padding: 0; flex-shrink: 0; }
+
+/* ---------- star rating (interactive + readonly) ---------- */
+.cl-stars-row { display: inline-flex; flex-direction: row-reverse; gap: 6px; }
+.cl-star {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--c-line-strong);
+  transition: color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+.cl-star i, .cl-star svg { width: 28px; height: 28px; fill: transparent; transition: fill var(--motion-fast) var(--ease-standard); }
+.cl-star:hover, .cl-star:hover ~ .cl-star,
+.cl-star.is-on, .cl-star.is-on ~ .cl-star { color: var(--c-accent); }
+.cl-star.is-on i, .cl-star.is-on svg { fill: var(--c-accent); }
+.cl-star:active { transform: scale(0.92); }
+.cl-star-set { display: flex; flex-wrap: wrap; gap: 7px; }
+.cl-stars-read { display: inline-flex; align-items: center; gap: 2px; color: var(--c-accent); }
+.cl-stars-read i, .cl-stars-read svg { width: 14px; height: 14px; }
+.cl-stars-read .star-off { color: var(--c-line-strong); }
+
+/* ---------- history scaffolding ---------- */
+.cl-rides-wrap { display: flex; flex-direction: column; gap: 14px; }
+.cl-filter-bar { display: flex; flex-direction: column; gap: 10px; }
+.cl-filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.cl-filter-row .chip { flex-shrink: 0; }
+@media (max-width: 599px) {
+  .cl-filter-row { margin-inline: -16px; padding-inline: 16px; }
+}
+.cl-history-list { display: flex; flex-direction: column; }
+.cl-history-list .list-item { padding: 13px 14px; }
+.cl-history-list .li-icon { width: 42px; height: 42px; }
+
+/* ---------- profile scaffolding ---------- */
+.cl-profile-grid { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+@media (min-width: 1024px) {
+  .cl-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+}
+.cl-profile-card { padding: 16px; display: flex; flex-direction: column; gap: 13px; min-width: 0; }
+.cl-profile-avatar-row { display: flex; align-items: center; gap: 14px; }
+.cl-form-2col { display: grid; grid-template-columns: 1fr; gap: 4px 12px; }
+@media (min-width: 640px) { .cl-form-2col { grid-template-columns: 1fr 1fr; } }
+.cl-tab-target { scroll-margin-top: 76px; }
+.cl-tab-target.cl-tab-flash { animation: cl-tab-flash 1.6s ease; }
+@keyframes cl-tab-flash {
+  0%, 60% { box-shadow: 0 0 0 3px var(--c-primary-soft); border-color: var(--c-primary); }
+  100% { box-shadow: var(--sh-1); }
+}
+.cl-meter { height: 8px; border-radius: var(--r-full); background: var(--c-surface-3); overflow: hidden; margin-top: 8px; }
+.cl-meter .cl-meter-bar {
+  height: 100%; width: 0; border-radius: var(--r-full); background: var(--c-danger);
+  transition: width var(--motion-normal) var(--ease-standard), background var(--motion-normal) var(--ease-standard);
+}
+
+/* ---------- navigation steps ---------- */
+.rd-nav-step { border-radius: var(--r-sm); }
+.rd-nav-step.active { background: var(--c-primary-soft); margin: 0 -6px; padding-left: 10px !important; padding-right: 10px !important; }
+.rd-nav-step.active i, .rd-nav-step.active svg { color: var(--c-primary-deep); }
+.rd-nav-step.done { opacity: 0.55; }
+.rd-nav-step.done i, .rd-nav-step.done svg { color: var(--c-success); }
+
+/* ---------- desktop layout ---------- */
+@media (min-width: 1024px) {
+  .rd-stack { max-width: 980px; }
+}

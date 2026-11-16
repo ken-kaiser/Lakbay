@@ -1,0 +1,470 @@
+/* ==========================================================================
+   Lakbay — Global design system
+   Tokens, reset, typography, motion system, app shell layout, utilities.
+   Brand: Electric Lime (#B6F500) on Midnight Green (#101A17) + Ice White
+   (#F4F6EF). Type: Sora (display) / Manrope (UI).
+   Design principles: lime is a strategic highlight, never wallpaper;
+   dark foundations carry the premium feel; light surfaces stay clean.
+   ========================================================================== */
+
+/* ---------- Tokens ---------- */
+:root {
+  /* Electric Lime — the brand highlight. Fills, active states, map routes.
+     Never used as large background on light pages, never behind white text. */
+  --c-primary: #B6F500;
+  --c-primary-hover: #A4DC00;
+  --c-primary-ink: #4C6D04;   /* lime-family ink for text/icons on light surfaces */
+  --c-primary-soft: #F0FBCF;  /* soft lime wash — focus rings, selected rows */
+  --c-primary-softer: #F8FEE6;
+  /* Legacy aliases — old token names kept until every rule is migrated */
+  --c-primary-strong: #A4DC00;
+  --c-primary-deep: #4C6D04;
+
+  /* Midnight foundation — dark bands, footer, CTA, dark cards */
+  --c-dark: #101A17;
+  --c-dark-2: #202B25;
+  --c-dark-3: #2C3A32;
+  --c-on-dark: #F4F6EF;
+  --c-on-dark-2: rgba(244, 246, 239, 0.66);
+  --c-on-dark-3: rgba(244, 246, 239, 0.38);
+  --c-line-dark: rgba(244, 246, 239, 0.12);
+
+  /* Warm accent — ratings and financial highlights only */
+  --c-accent: #E8A13A;
+  --c-accent-soft: #FBF1E1;
+  --c-accent-strong: #B7791F;
+
+  /* Ink (text) — midnight doubles as the ink color */
+  --c-ink: #101A17;
+  --c-ink-2: #39443D;
+  --c-ink-3: #737C73;
+  --c-ink-4: #9AA49B;
+
+  /* Lines & surfaces */
+  --c-line: #E4E9E0;
+  --c-line-strong: #CBD3C4;
+  --c-bg: #F4F6EF;
+  --c-surface: #FFFFFF;
+  --c-surface-2: #F7F9F2;
+  --c-surface-3: #ECF0E5;
+
+  /* Semantic */
+  --c-success: #557F11;
+  --c-success-soft: #F0FAD6;
+  --c-danger: #D14343;
+  --c-danger-soft: #FBE9E9;
+  --c-warn: #B7791F;
+  --c-warn-soft: #FBF0DC;
+  --c-info-soft: #F0F2EC;
+
+  /* Radii — buttons/inputs 10–14, cards 16–24, overlays 18–24 */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-full: 999px;
+
+  /* Shadows — quiet, layered, rare */
+  --sh-1: 0 1px 2px rgba(23, 34, 29, 0.05);
+  --sh-2: 0 1px 2px rgba(23, 34, 29, 0.04), 0 3px 10px -2px rgba(23, 34, 29, 0.08);
+  --sh-3: 0 4px 12px -2px rgba(23, 34, 29, 0.08), 0 20px 44px -16px rgba(23, 34, 29, 0.2);
+  --sh-pop: 0 0 0 1px var(--c-line), 0 12px 32px -8px rgba(23, 34, 29, 0.16);
+
+  /* Type — Sora (display) + Manrope (UI), self-hosted in assets/fonts */
+  --font-ui: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Sora", "Manrope", "Segoe UI", system-ui, sans-serif;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.75px;
+  --fs-md: 14px;
+  --fs-lg: 15.5px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+  --fs-3xl: 28px;
+
+  /* Typography scale — the Lakbay type ramp
+     Hero heading    Sora 700    48–64px   (clamp floors at 36px on small screens)
+     Section heading Sora 600    30–36px
+     Card heading    Sora 600    20–24px
+     Navigation      Manrope 600 14–15px
+     Body text       Manrope 400 14–16px   (--fs-md / --fs-lg)
+     Buttons         Manrope 700 14–15px
+     Prices          Manrope 700 20–28px */
+  --fs-hero: clamp(36px, 5.6vw, 64px);
+  --fs-section: clamp(26px, 3.1vw, 36px);
+  --fs-card-h: 20px;
+  --fs-nav: 14.5px;
+  --fs-btn: 14.5px;
+  --fs-price: 22px;
+
+  /* Spacing scale — 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Motion system — durations */
+  --motion-instant: 100ms;
+  --motion-fast: 150ms;
+  --motion-normal: 220ms;
+  --motion-moderate: 320ms;
+  --motion-slow: 450ms;
+
+  /* Motion system — easing */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Motion system — distances */
+  --motion-distance-sm: 6px;
+  --motion-distance-md: 14px;
+  --motion-distance-lg: 24px;
+
+  /* Legacy aliases (kept so existing rules transition smoothly) */
+  --tr-fast: var(--motion-fast) var(--ease-standard);
+  --tr-med: var(--motion-normal) var(--ease-standard);
+
+  /* Layout */
+  --sidebar-w: 232px;
+  --header-h: 58px;
+  --bottomnav-h: 60px;
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  color: var(--c-ink);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+img, svg, video { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+a { color: var(--c-primary-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { list-style: none; }
+strong { font-weight: 650; }
+:focus-visible { outline: 2px solid var(--c-primary-hover); outline-offset: 2px; border-radius: 4px; }
+::selection { background: rgba(182, 245, 0, 0.35); color: var(--c-dark); }
+::placeholder { color: var(--c-ink-4); opacity: 1; }
+[hidden] { display: none !important; }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--c-line-strong) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--c-line-strong); border-radius: var(--r-full); }
+*::-webkit-scrollbar-thumb:hover { background: var(--c-ink-4); }
+
+/* Section headings use the display face */
+h1, h2, h3 { font-family: var(--font-display); }
+
+/* ---------- Typography scale ---------- */
+.t-display { font-family: var(--font-display); font-size: var(--fs-3xl); font-weight: 700; letter-spacing: -0.022em; line-height: 1.15; }
+.t-title   { font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.018em; line-height: 1.22; }
+.t-h2      { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.014em; line-height: 1.28; }
+.t-h3      { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 600; line-height: 1.32; }
+.t-body    { font-size: var(--fs-md); font-weight: 400; }
+.t-small   { font-size: var(--fs-sm); color: var(--c-ink-3); }
+.t-xs      { font-size: var(--fs-xs); color: var(--c-ink-4); }
+.t-muted   { color: var(--c-ink-3); }
+.t-strong  { font-weight: 600; }
+.t-num     { font-variant-numeric: tabular-nums; }
+
+/* Small-caps section label — typography instead of pills */
+.t-overline {
+  font-size: 11px; font-weight: 650; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--c-ink-4);
+}
+
+/* ---------- Layout primitives ---------- */
+.page { min-height: 100vh; display: flex; flex-direction: column; }
+.container { width: 100%; max-width: 1128px; margin: 0 auto; padding: 0 20px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+.grid { display: grid; gap: 12px; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.spacer { flex: 1; }
+.stack-4 > * + * { margin-top: 4px; }
+.stack-8 > * + * { margin-top: 8px; }
+.stack-12 > * + * { margin-top: 12px; }
+.stack-16 > * + * { margin-top: 16px; }
+.stack-24 > * + * { margin-top: 24px; }
+.mt-4 { margin-top: 4px; } .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; } .mb-12 { margin-bottom: 12px; } .mb-16 { margin-bottom: 16px; }
+.center { text-align: center; }
+.nowrap { white-space: nowrap; }
+.clamp-1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hide-mobile { display: initial; }
+.only-mobile { display: none; }
+
+/* Section header pattern */
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 10px; }
+.section-head h3 { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; }
+
+/* Visually hidden (a11y) */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; border: 0; padding: 0;
+}
+
+/* ==========================================================================
+   MOTION SYSTEM — shared keyframes & entrance choreography
+   ========================================================================== */
+@keyframes lb-fade-up {
+  from { opacity: 0; transform: translateY(var(--motion-distance-md)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes lb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes lb-scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Page-load entrance: header settles first, content follows in sequence.
+   Runs once per reload; internal navigation uses view transitions instead. */
+.lb-boot .lb-header { animation: lb-fade-in var(--motion-normal) var(--ease-enter) both; }
+.lb-boot .lb-hero .lb-hero-copy > * { animation: lb-fade-up var(--motion-moderate) var(--ease-enter) both; }
+.lb-boot .lb-hero .lb-hero-copy > *:nth-child(1) { animation-delay: 40ms; }
+.lb-boot .lb-hero .lb-hero-copy > *:nth-child(2) { animation-delay: 90ms; }
+.lb-boot .lb-hero .lb-hero-copy > *:nth-child(3) { animation-delay: 140ms; }
+.lb-boot .lb-hero .lb-hero-copy > *:nth-child(4) { animation-delay: 190ms; }
+.lb-boot .lb-hero .lb-hero-copy > *:nth-child(5) { animation-delay: 240ms; }
+.lb-boot .lb-hero .lb-hero-art { animation: lb-fade-up var(--motion-slow) var(--ease-enter) 160ms both; }
+.lb-boot .lb-auth-card { animation: lb-fade-up var(--motion-moderate) var(--ease-enter) both; }
+
+/* App shell entrance */
+.app-boot .app-sidebar { animation: lb-fade-in var(--motion-normal) var(--ease-enter) both; }
+.app-boot .app-header { animation: lb-fade-in var(--motion-normal) var(--ease-enter) both; }
+.app-boot .app-bottomnav { animation: lb-fade-in var(--motion-normal) var(--ease-enter) both; }
+.app-boot .app-view > .cl-stack > *,
+.app-boot .app-view > .rd-stack > *,
+.app-boot .app-view > * { animation: lb-fade-up var(--motion-moderate) var(--ease-enter) both; }
+.app-boot .app-view > .cl-stack > *:nth-child(1), .app-boot .app-view > .rd-stack > *:nth-child(1), .app-boot .app-view > *:nth-child(1) { animation-delay: 30ms; }
+.app-boot .app-view > .cl-stack > *:nth-child(2), .app-boot .app-view > .rd-stack > *:nth-child(2), .app-boot .app-view > *:nth-child(2) { animation-delay: 70ms; }
+.app-boot .app-view > .cl-stack > *:nth-child(3), .app-boot .app-view > .rd-stack > *:nth-child(3), .app-boot .app-view > *:nth-child(3) { animation-delay: 110ms; }
+.app-boot .app-view > .cl-stack > *:nth-child(4), .app-boot .app-view > .rd-stack > *:nth-child(4), .app-boot .app-view > *:nth-child(4) { animation-delay: 150ms; }
+.app-boot .app-view > .cl-stack > *:nth-child(n+5), .app-boot .app-view > .rd-stack > *:nth-child(n+5) { animation-delay: 190ms; }
+.app-boot.app-ready .app-view > * { animation: none; }
+
+/* Scroll reveal — subtle, opt-in via [data-reveal] */
+[data-reveal] { opacity: 0; transform: translateY(var(--motion-distance-md)); }
+[data-reveal].revealed {
+  opacity: 1; transform: translateY(0);
+  transition: opacity var(--motion-moderate) var(--ease-enter), transform var(--motion-moderate) var(--ease-enter);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.no-io [data-reveal] { opacity: 1; transform: none; }
+
+/* View Transitions API — subtle cross-fade with slight rise */
+@view-transition { navigation: auto; }
+::view-transition-old(view-root) { animation: vt-out var(--motion-fast) var(--ease-exit) both; }
+::view-transition-new(view-root) { animation: vt-in var(--motion-normal) var(--ease-enter) both; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--motion-fast); }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-reveal] { opacity: 1; transform: none; }
+}
+
+/* ---------- App shell (client.html / rider.html) ---------- */
+.app-shell { min-height: 100vh; display: flex; background: var(--c-bg); }
+.app-sidebar {
+  display: none;
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-line);
+  position: sticky; top: 0;
+  height: 100vh;
+  flex-direction: column;
+  padding: 16px 14px;
+}
+.app-sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+.app-sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.app-sidebar .side-foot { border-top: 1px solid var(--c-line); padding-top: 12px; margin-top: 12px; display: flex; flex-direction: column; gap: 3px; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: var(--r-md);
+  font-size: var(--fs-md); font-weight: 500; color: var(--c-ink-3);
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  width: 100%; text-align: left;
+}
+.nav-item i, .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; transition: color var(--motion-fast) var(--ease-standard); }
+.nav-item:hover { background: var(--c-surface-2); color: var(--c-ink); text-decoration: none; }
+.nav-item.active { background: var(--c-primary-soft); color: var(--c-primary-deep); font-weight: 600; }
+.nav-item.active i, .nav-item.active svg { color: var(--c-primary-ink); }
+.nav-item .nav-badge {
+  margin-left: auto; background: var(--c-danger); color: #fff;
+  font-size: 10.5px; font-weight: 600; min-width: 18px; height: 18px;
+  border-radius: var(--r-full); display: inline-flex; align-items: center; justify-content: center; padding: 0 5px;
+}
+
+.app-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.app-header {
+  position: sticky; top: 0; z-index: 40;
+  height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--c-line);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.app-header .hdr-title { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; }
+.app-header .hdr-sub { font-size: var(--fs-xs); color: var(--c-ink-4); }
+.app-view { flex: 1 1 auto; min-width: 0; padding: 18px 16px 28px; view-transition-name: view-root; }
+.app-view--flush { padding: 0; }
+
+.app-bottomnav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  height: calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--c-line);
+  display: flex; align-items: stretch;
+}
+.app-bottomnav a, .app-bottomnav button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; font-size: 10.5px; font-weight: 550; color: var(--c-ink-4);
+  position: relative; transition: color var(--motion-fast) var(--ease-standard);
+}
+.app-bottomnav i, .app-bottomnav svg { width: 20px; height: 20px; transition: transform var(--motion-normal) var(--ease-emphasized); }
+.app-bottomnav .active { color: var(--c-primary-deep); }
+.app-bottomnav .active i, .app-bottomnav .active svg { transform: translateY(-1px); }
+.app-bottomnav .nav-badge {
+  position: absolute; top: 7px; left: calc(50% + 4px);
+  background: var(--c-danger); color: #fff; font-size: 9.5px; font-weight: 600;
+  min-width: 16px; height: 16px; border-radius: var(--r-full);
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
+}
+
+@media (min-width: 1024px) {
+  .app-sidebar { display: flex; }
+  .app-bottomnav { display: none; }
+  .app-view { padding: 24px 28px 40px; }
+  .app-header { padding: 0 28px; }
+}
+@media (max-width: 599px) {
+  .hide-mobile { display: none !important; }
+  .only-mobile { display: initial; }
+  .app-view:not(.app-view--flush) { padding-bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px) + 20px); }
+}
+
+/* ---------- Brand ---------- */
+.brand-logo { display: inline-flex; align-items: center; gap: 9px; }
+.brand-logo .logo-mark {
+  width: 28px; height: 28px; border-radius: 9px;
+  background: var(--c-dark); color: var(--c-lime, var(--c-primary));
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.brand-logo .logo-mark svg { width: 16px; height: 16px; }
+.brand-logo .logo-word { font-family: var(--font-display); font-size: 16.5px; font-weight: 700; letter-spacing: -0.02em; color: var(--c-ink); }
+.brand-logo .logo-word em { font-style: normal; color: inherit; }
+.brand-logo.on-dark .logo-word { color: #fff; }
+
+/* ==========================================================================
+   BRAND ASSET KIT — reusable graphic elements
+   Motion streaks · route pattern · oversized bolt · directional stripes
+   These keep Lakbay's surfaces feeling like one designed system.
+   ========================================================================== */
+
+/* Motion streaks — diagonal soft tubes for hero banners & dividers */
+.brand-streaks {
+  position: relative; overflow: hidden;
+}
+.brand-streaks::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(120px 120px at 85% 12%, rgba(182, 245, 0, 0.14), transparent 70%),
+    repeating-linear-gradient(118deg,
+      transparent 0 90px,
+      rgba(244, 246, 239, 0.05) 90px 108px,
+      transparent 108px 210px,
+      rgba(182, 245, 0, 0.06) 210px 222px);
+}
+
+/* Route pattern — topographic-style route lines for dark bands.
+   Ships as assets/brand/pattern-route.svg (light strokes on transparent). */
+.brand-routes {
+  position: relative; overflow: hidden;
+}
+.brand-routes::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: url("../assets/brand/pattern-route.svg");
+  background-size: 560px auto; background-repeat: repeat;
+  opacity: 0.55;
+}
+
+/* Directional stripes — lime sweep for transitions & card edges */
+.brand-sweep {
+  position: relative; overflow: hidden;
+}
+.brand-sweep::after {
+  content: ""; position: absolute; right: -12%; top: -40%; bottom: -40%; width: 34%;
+  transform: rotate(24deg);
+  background: linear-gradient(180deg, rgba(182, 245, 0, 0), rgba(182, 245, 0, 0.16), rgba(182, 245, 0, 0));
+  pointer-events: none;
+}
+
+/* Oversized bolt watermark — campaign cards & brand storytelling.
+   Pass color via `color`; size via font-size on the class root. */
+.brand-bolt-mark {
+  position: absolute; pointer-events: none; line-height: 0;
+  opacity: 0.1;
+}
+.brand-bolt-mark svg { width: 100%; height: 100%; fill: currentColor; }
+
+/* ---------- Location chip (header) ---------- */
+.loc-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  max-width: 300px; padding: 6px 12px 6px 9px;
+  background: var(--c-surface-2); border: 1px solid var(--c-line);
+  border-radius: var(--r-full); font-size: var(--fs-sm); color: var(--c-ink-2);
+  cursor: pointer; transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+}
+.loc-chip:hover { border-color: var(--c-line-strong); background: var(--c-surface-3); }
+.loc-chip i, .loc-chip svg { width: 14px; height: 14px; color: var(--c-primary-ink); flex-shrink: 0; }
+.loc-chip .loc-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Sim / demo disclosure ---------- */
+.demo-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: var(--fs-xs); color: var(--c-ink-3);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  padding: 9px 12px; border-radius: var(--r-md);
+  line-height: 1.5;
+}
+.demo-note i, .demo-note svg { width: 13px; height: 13px; margin-top: 2px; flex-shrink: 0; color: var(--c-ink-4); }
+.demo-note strong { color: var(--c-ink-2); font-weight: 600; }

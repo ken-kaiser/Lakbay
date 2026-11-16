@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Lakbay"><defs>
+  <radialGradient id="Itile" cx="0.5" cy="0.26" r="0.95">
+    <stop offset="0" stop-color="#18231D"/><stop offset="1" stop-color="#0B120E"/>
+  </radialGradient>
+  <filter id="Ibig" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="46"/></filter>
+  
+  <linearGradient id="Igf" x1="34" y1="2" x2="8" y2="36" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#CDFC2A"/><stop offset="1" stop-color="#BDF605"/>
+  </linearGradient>
+  <linearGradient id="Igb" x1="40" y1="22" x2="24" y2="52" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#B5F127"/><stop offset="1" stop-color="#9EE413"/>
+  </linearGradient>
+  <clipPath id="Icb"><path d="M 33.00 20.80 L 33.00 20.80 L 50.83 26.02 Q 56.20 27.60 52.28 31.60 L 49.22 34.74 Q 47.40 36.60 45.36 38.21 L 25.38 54.04 Q 22.40 56.40 22.91 52.63 L 24.96 37.58 Q 25.20 35.80 26.03 34.20 L 33.00 20.80 Z"/></clipPath>
+  <filter id="Ib1" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.4"/></filter>
+  <filter id="Ib2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1.7"/></filter><clipPath id="Iclip"><rect width="512" height="512" rx="118"/></clipPath></defs>
+  <g clip-path="url(#Iclip)">
+    <rect width="512" height="512" fill="url(#Itile)"/>
+    <ellipse cx="252" cy="316" rx="180" ry="160" fill="#B6F500" opacity="0.16" filter="url(#Ibig)"/>
+    <ellipse cx="248" cy="386" rx="90" ry="76" fill="#B6F500" opacity="0.22" filter="url(#Ibig)"/>
+    <g transform="translate(108.34,111.00) scale(5.35)">
+  <path d="M 33.00 20.80 L 33.00 20.80 L 50.83 26.02 Q 56.20 27.60 52.28 31.60 L 49.22 34.74 Q 47.40 36.60 45.36 38.21 L 25.38 54.04 Q 22.40 56.40 22.91 52.63 L 24.96 37.58 Q 25.20 35.80 26.03 34.20 L 33.00 20.80 Z" fill="url(#Igb)"/>
+  <g clip-path="url(#Icb)">
+    <path d="M 33.00 20.80 Q 28.15 29.30 25.20 35.80" fill="none" stroke="#132408" stroke-width="9" stroke-linecap="round" opacity="0.42" filter="url(#Ib1)"/>
+    <path d="M 33.00 20.80 Q 28.15 29.30 25.20 35.80" fill="none" stroke="#0E1D06" stroke-width="3.6" stroke-linecap="round" opacity="0.42" filter="url(#Ib2)"/>
+  </g>
+  <path d="M 4.25 30.66 Q -1.00 29.40 2.85 25.61 L 26.32 2.53 Q 29.60 -0.70 34.20 -0.70 L 40.20 -0.70 Q 44.40 -0.70 42.43 3.01 L 34.12 18.68 Q 33.00 20.80 31.96 22.96 L 25.75 35.80 L 25.75 35.80 L 4.25 30.66 Z" fill="url(#Igf)"/></g>
+  </g>
+  <rect width="512" height="512" rx="118" fill="none" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="3"/>
+</svg>

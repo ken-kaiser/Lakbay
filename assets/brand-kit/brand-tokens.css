@@ -1,0 +1,115 @@
+/* ============================================================
+   Lakbay Brand Tokens — Electric Lime system
+   Single source of truth for brand color, type, radii, motion.
+   Import alongside css/global.css (or copy tokens into :root).
+   ============================================================ */
+
+:root {
+  /* -- color: core triad ------------------------------------ */
+  --lb-primary: #B6F500;        /* Electric Lime — strategic highlight only */
+  --lb-primary-hover: #A4DC00;
+  --lb-primary-soft: rgba(182, 245, 0, 0.14);
+  --lb-dark: #101A17;           /* Midnight Green — visual base */
+  --lb-dark-2: #202B25;         /* raised dark surface */
+  --lb-light: #F4F6EF;          /* Ice White — app background */
+  --lb-card: #FFFFFF;           /* card surface */
+  --lb-border: #E4E9E0;
+
+  /* -- color: text ------------------------------------------ */
+  --lb-ink: #1A2420;            /* primary text on light */
+  --lb-muted: #737C73;          /* secondary text on light */
+  --lb-on-dark: #F7FAF4;        /* primary text on dark */
+  --lb-on-dark-muted: #9AA69C;
+
+  /* -- shape ------------------------------------------------- */
+  --lb-radius-card: 20px;       /* cards 16-24px */
+  --lb-radius-card-lg: 24px;
+  --lb-radius-btn: 12px;        /* buttons 10-14px */
+  --lb-radius-pill: 999px;
+  --lb-radius-input: 12px;
+
+  /* -- elevation: soft & restrained -------------------------- */
+  --lb-shadow-card: 0 1px 2px rgba(16, 26, 23, 0.05), 0 8px 24px rgba(16, 26, 23, 0.07);
+  --lb-shadow-pop: 0 4px 12px rgba(16, 26, 23, 0.10), 0 16px 40px rgba(16, 26, 23, 0.14);
+  --lb-shadow-cta: 0 6px 18px rgba(182, 245, 0, 0.30);
+  --lb-ring-focus: 0 0 0 3px rgba(182, 245, 0, 0.35);
+
+  /* -- type --------------------------------------------------- */
+  --lb-font-display: 'Sora', 'Manrope', system-ui, sans-serif;
+  --lb-font-body: 'Manrope', system-ui, sans-serif;
+
+  /* -- motion: 180-300ms for hovers/transitions --------------- */
+  --lb-dur-fast: 180ms;
+  --lb-dur-base: 240ms;
+  --lb-dur-slow: 300ms;
+  --lb-ease: cubic-bezier(0.2, 0, 0, 1);
+  --lb-ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* -- logo lockup -------------------------------------------- */
+  --lb-logo-height: 30px;
+}
+
+/* ============ Reusable brand components ============ */
+
+/* Horizontal logo lockup: mark tile + wordmark.
+   <a class="lb-logo" href="/"><span class="lb-logo__mark">SVG</span>
+     <span class="lb-logo__word">Lak<em>bay</em></span></a> */
+.lb-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.lb-logo__mark {
+  width: var(--lb-logo-height);
+  height: var(--lb-logo-height);
+  border-radius: 10px;
+  background: var(--lb-dark);
+  color: var(--lb-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lb-logo__mark svg { width: 62%; height: 62%; }
+.lb-logo__mark--lime { background: var(--lb-primary); color: var(--lb-dark); }
+.lb-logo__word {
+  font-family: var(--lb-font-display);
+  font-weight: 700;
+  font-size: calc(var(--lb-logo-height) * 0.6);
+  letter-spacing: -0.02em;
+  color: var(--lb-ink);
+}
+.lb-logo__word em { font-style: normal; }
+.lb-logo.on-dark .lb-logo__word { color: var(--lb-on-dark); }
+
+/* Primary CTA — the "Get Started" pill from the brand board */
+.lb-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border: 0;
+  border-radius: var(--lb-radius-pill);
+  background: linear-gradient(180deg, #C6FB1A 0%, #ABEE00 100%);
+  color: var(--lb-dark);
+  font-family: var(--lb-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--lb-shadow-cta);
+  transition: transform var(--lb-dur-fast) var(--lb-ease),
+              box-shadow var(--lb-dur-base) var(--lb-ease),
+              background var(--lb-dur-fast) var(--lb-ease);
+}
+.lb-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(182, 245, 0, 0.38); }
+.lb-cta:active { transform: translateY(0); background: var(--lb-primary-hover); }
+.lb-cta:focus-visible { outline: none; box-shadow: var(--lb-ring-focus); }
+
+/* Brand color helpers */
+.lb-surface-dark { background: var(--lb-dark); color: var(--lb-on-dark); }
+.lb-highlight { color: var(--lb-primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cta, .lb-logo__mark { transition: none; }
+}

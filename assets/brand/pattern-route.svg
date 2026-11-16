@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" fill="none">
+  <!-- Lakbay brand asset — route / topographic pattern (light strokes, tiles seamlessly at 560px) -->
+  <g stroke="#F4F6EF" stroke-opacity="0.07" stroke-width="1.5">
+    <path d="M-20 60c60-38 132-30 178 4s96 40 150 12 118-24 172 6"/>
+    <path d="M-20 128c68-30 128-16 170 16s104 34 156 6 122-18 174 10"/>
+    <path d="M-20 200c56-24 120-20 168 8s100 30 154 4 120-22 178 2"/>
+    <path d="M-20 272c64-28 126-18 172 10s102 28 152 6 124-26 176-2"/>
+    <path d="M-20 340c58-26 122-22 170 4s104 26 152 8 122-24 178-4"/>
+    <path d="M60 -20c-24 60-16 118 12 162s30 104 4 156-20 122 2 174"/>
+    <path d="M240 -20c-20 66-10 124 18 168s26 100 2 152-18 124 4 172"/>
+    <path d="M430 -20c-26 58-18 116 8 160s30 102 6 154-22 120 0 172"/>
+  </g>
+  <g stroke="#B6F500" stroke-opacity="0.16" stroke-width="1.5">
+    <path d="M-20 96c72-34 140-22 188 10s110 30 162 2 116-16 172 8" stroke-dasharray="1 10" stroke-linecap="round"/>
+    <path d="M120 420c-18-52-10-104 16-146s28-96 6-146" stroke-dasharray="1 10" stroke-linecap="round"/>
+  </g>
+  <g stroke="#B6F500" stroke-opacity="0.3" stroke-width="2">
+    <path d="M-20 236c84-40 158-26 214 8s122 26 174-2 108-12 152 6" stroke-dasharray="6 8" stroke-linecap="round"/>
+  </g>
+  <circle cx="356" cy="247" r="5" fill="#B6F500" fill-opacity="0.4"/>
+  <circle cx="356" cy="247" r="2.2" fill="#B6F500" fill-opacity="0.85"/>
+</svg>
