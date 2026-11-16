@@ -48,9 +48,10 @@ const riderProfileView = {
 
     const pf = el('div', { class: 'cl-form-2col' });
     const mkField = (label, name, value, opts = {}) => {
-      const input = el('input', { class: 'input', name, type: opts.type || 'text', value: value || '', placeholder: opts.ph || '', maxlength: opts.max || '60', disabled: !!opts.disabled });
+      const id = 'rp-' + name;
+      const input = el('input', { class: 'input', id, name, type: opts.type || 'text', value: value || '', placeholder: opts.ph || '', maxlength: opts.max || '60', disabled: !!opts.disabled });
       if (opts.phone) input.addEventListener('input', () => { input.value = formatPhoneInput(input.value); });
-      return el('div', { class: 'field' }, el('label', {}, label), input);
+      return el('div', { class: 'field' }, el('label', { for: id }, label), input);
     };
     const firstName = mkField('First name', 'firstName', me.firstName);
     const lastName = mkField('Last name', 'lastName', me.lastName);
@@ -85,7 +86,7 @@ const riderProfileView = {
     };
     const [stLabel, stClass, stIcon] = statusMeta[ver.status] || statusMeta.not_submitted;
     vc.appendChild(el('div', { class: 'row-between' },
-      el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'shield-check' }), 'Verification'),
+      el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'shield-check' }), 'Verification'),
       el('span', { class: stClass }, el('i', { 'data-lucide': stIcon }), stLabel)));
 
     vc.appendChild(el('p', { class: 't-small' },
@@ -100,8 +101,9 @@ const riderProfileView = {
     const docGrid = el('div', { class: 'rd-doc-grid' });
     DOC_DEFS.forEach((d) => {
       const has = docs[d.key] && docs[d.key].name;
-      const fileInput = el('input', { type: 'file', accept: 'image/*,.pdf', class: 'sr-only', 'aria-label': `Upload ${d.label}` });
-      const tile = el('button', { class: `rd-doc-tile${has ? ' ok' : ''}`, type: 'button' },
+      const fileInput = el('input', { type: 'file', accept: 'image/*,.pdf', class: 'sr-only', tabindex: '-1', 'aria-hidden': 'true' });
+      const tile = el('button', { class: `rd-doc-tile${has ? ' ok' : ''}`, type: 'button',
+        'aria-label': has ? `${d.label}: ${docs[d.key].name} attached. Replace file` : `Upload ${d.label}` },
         el('i', { 'data-lucide': has ? 'circle-check' : d.icon }),
         el('span', { class: 'rd-doc-label' }, d.label),
         el('span', { class: 'rd-doc-sub clamp-1' }, has ? docs[d.key].name : d.hint));
@@ -113,7 +115,14 @@ const riderProfileView = {
         Users.update(userId, { verification: nextVer });
         Toast.success('Document attached', `${f.name} — added to your verification.`);
         fileInput.value = '';
-        App.navigate('profile', { query: { tab: 'verification' } }, { replace: true });
+        // Update just this tile instead of re-rendering the page, so vehicle
+        // details the rider already typed are kept.
+        tile.classList.add('ok');
+        const ico = el('i', { 'data-lucide': 'circle-check' });
+        tile.replaceChild(ico, tile.firstElementChild);
+        tile.querySelector('.rd-doc-sub').textContent = f.name;
+        tile.setAttribute('aria-label', `${d.label}: ${f.name} attached. Replace file`);
+        Icons.refresh(tile);
       });
       docGrid.append(tile, fileInput);
     });
@@ -168,7 +177,7 @@ const riderProfileView = {
 
     /* ---- payout ---- */
     const pay = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'payout' });
-    pay.appendChild(el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'wallet' }), 'Payout account'));
+    pay.appendChild(el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'wallet' }), 'Payout account'));
     pay.appendChild(el('p', { class: 't-small' }, 'Where your weekly earnings are sent. Payouts go to your registered account.'));
     const payGrid = el('div', { class: 'cl-form-2col' });
     const gcash = el('input', { class: 'input', id: 'po-gcash', placeholder: '0918 445 2233', value: (me.payout && me.payout.gcash) || '' });
@@ -188,7 +197,7 @@ const riderProfileView = {
 
     /* ---- preferences + security ---- */
     const pref = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'notifications' });
-    pref.appendChild(el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'bell' }), 'Notification preferences'));
+    pref.appendChild(el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'bell' }), 'Notification preferences'));
     const savedN = Prefs.get(userId, 'notify', { sound: true, booking: true });
     [
       ['booking', 'Ride requests & trip alerts', 'Pop-ups while the app is open'],
@@ -208,7 +217,7 @@ const riderProfileView = {
     wrap.appendChild(pref);
 
     const sec = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'security' });
-    sec.appendChild(el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'shield-check' }), 'Password & security'));
+    sec.appendChild(el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'shield-check' }), 'Password & security'));
     sec.appendChild(el('p', { class: 't-small' }, 'Passwords are SHA-256 hashed before storage; plaintext is never seen or stored.'));
     const pwBtn = el('button', { class: 'btn btn--outline btn--sm' }, el('i', { 'data-lucide': 'key-round' }), 'Change password');
     pwBtn.addEventListener('click', () => openRiderChangePassword(userId));

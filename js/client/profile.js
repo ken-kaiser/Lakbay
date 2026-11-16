@@ -251,7 +251,7 @@ const profileView = {
 
     /* ---- security card ---- */
     const sec = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'security' });
-    sec.appendChild(el('h3', { class: 'cl-section-title' }, 'Password & security'));
+    sec.appendChild(el('h2', { class: 'cl-section-title' }, 'Password & security'));
     sec.appendChild(el('p', { class: 't-small' },
       'Passwords are hashed with SHA-256 and never stored in plain text. Your data lives only on this device.'));
     const pwBtn = el('button', { class: 'btn btn--outline' }, el('i', { 'data-lucide': 'key-round' }), 'Change password');
@@ -261,7 +261,7 @@ const profileView = {
 
     /* ---- saved places ---- */
     const places = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'places' });
-    places.appendChild(el('h3', { class: 'cl-section-title' }, 'Saved places'));
+    places.appendChild(el('h2', { class: 'cl-section-title' }, 'Saved places'));
     const placeList = el('div', {});
     function paintPlaces() {
       clear(placeList);
@@ -304,7 +304,7 @@ const profileView = {
 
     /* ---- notification prefs ---- */
     const nprefs = el('div', { class: 'card cl-profile-card cl-tab-target', 'data-tab': 'notifications' });
-    nprefs.appendChild(el('h3', { class: 'cl-section-title' }, 'Notification preferences'));
+    nprefs.appendChild(el('h2', { class: 'cl-section-title' }, 'Notification preferences'));
     const savedN = Prefs.get(userId, 'notify', { booking: true, promos: true, sound: true });
     [
       ['booking', 'Ride updates', 'Matching, arrival, and trip status alerts'],
@@ -332,7 +332,7 @@ const profileView = {
 
     /* ---- support ---- */
     const sup = el('div', { class: 'card cl-profile-card cl-tab-target cl-profile-wide', 'data-tab': 'support' });
-    sup.appendChild(el('h3', { class: 'cl-section-title' }, 'Help & support'));
+    sup.appendChild(el('h2', { class: 'cl-section-title' }, 'Help & support'));
     const faq = el('div', { class: 'cl-faq' });
     FAQS.forEach((item) => {
       const q = el('button', { class: 'cl-faq-q', type: 'button', 'aria-expanded': 'false' },
@@ -374,7 +374,7 @@ const profileView = {
 
     /* ---- danger zone ---- */
     const dz = el('div', { class: 'card cl-profile-card cl-danger-card cl-tab-target', 'data-tab': 'about' });
-    dz.appendChild(el('h3', { class: 'cl-section-title' }, 'About Lakbay'));
+    dz.appendChild(el('h2', { class: 'cl-section-title' }, 'About Lakbay'));
     dz.appendChild(el('p', { class: 't-small' }, 'Lakbay v1.0 · vanilla HTML, CSS, and JavaScript · Leaflet & OpenStreetMap maps · Lucide icons. Reset removes every account, booking, and preference stored in this browser.'));
     const dzRow = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' });
     const resetBtn = el('button', { class: 'btn btn--outline' }, el('i', { 'data-lucide': 'trash-2' }), 'Reset app data');

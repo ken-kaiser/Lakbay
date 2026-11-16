@@ -357,18 +357,18 @@ export const homeView = {
 
     /* saved places */
     const savedHead = el('div', { class: 'row-between' },
-      el('h3', { class: 'cl-section-title' }, 'Saved places'),
+      el('h2', { class: 'cl-section-title' }, 'Saved places'),
       el('a', { class: 'cl-section-more', href: '#/profile?tab=places' }, 'Manage'),
     );
-    const chipRow = el('div', { class: 'cl-hscroll', role: 'list' });
+    const chipRow = el('div', { class: 'cl-hscroll', role: 'group', 'aria-label': 'Saved places' });
     if (!saved.length) {
-      const addChip = el('button', { class: 'cl-place-chip', type: 'button', role: 'listitem' },
+      const addChip = el('button', { class: 'cl-place-chip', type: 'button' },
         el('i', { 'data-lucide': 'plus' }), el('span', { class: 'clamp-1' }, 'Add Home or Work'));
       addChip.addEventListener('click', () => App.navigate('profile', { query: { tab: 'places' } }));
       chipRow.appendChild(addChip);
     }
     saved.forEach((sp) => {
-      const chipBtn = el('button', { class: 'cl-place-chip', type: 'button', role: 'listitem' },
+      const chipBtn = el('button', { class: 'cl-place-chip', type: 'button' },
         el('i', { 'data-lucide': sp.icon || 'star' }),
         el('span', { class: 'clamp-1' }, `${sp.label} · ${sp.name}`),
       );
@@ -408,14 +408,14 @@ export const homeView = {
     } else {
       recentCard.appendChild(el('div', { class: 'empty', style: 'padding:22px' },
         el('div', { class: 'empty-icon' }, el('i', { 'data-lucide': 'history' })),
-        el('h4', {}, 'No recent destinations'),
+        el('h3', {}, 'No recent destinations'),
         el('p', {}, 'Places you book to will appear here for one-tap rebooking.'),
       ));
     }
     wrap.appendChild(recentCard);
 
     /* quick actions — secondary flows only (booking + wallet live in the nav) */
-    wrap.appendChild(el('h3', { class: 'cl-section-title' }, 'Quick actions'));
+    wrap.appendChild(el('h2', { class: 'cl-section-title' }, 'Quick actions'));
     const quickDefs = [
       { icon: 'calendar-clock', label: 'Schedule a ride', run: () => openScheduleModal(userId, saved) },
       { icon: 'history', label: 'Ride history', run: () => App.navigate('activity') },
@@ -432,7 +432,7 @@ export const homeView = {
 
     /* promos — expressive campaign cards: art right, offer copy left,
        code chip + copy action pinned bottom. One shared component. */
-    const promoHead = el('h3', { class: 'cl-section-title' }, 'Promos for you');
+    const promoHead = el('h2', { class: 'cl-section-title' }, 'Promos for you');
     const promoRow = promoRail(PROMOS, {
       onCopy: async (p, card) => {
         const ok = await copyText(p.code);

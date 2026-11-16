@@ -82,6 +82,11 @@ function renderRouteNow() {
 
   if (!def) {
     App.navigate(shellRefs.homeView || 'home', {}, { replace: true });
+    // #/notifications isn't a page: notifications open as a panel. Go home
+    // and open the panel, instead of silently dropping the request.
+    if (route.id === 'notifications') {
+      setTimeout(() => { const bell = qs('.app-header [aria-label="Notifications"]'); if (bell) bell.click(); }, 80);
+    }
     return;
   }
 
@@ -234,7 +239,8 @@ App.setHeader = (title, sub) => {
   clear(headerLeft);
   if (title) {
     headerLeft.appendChild(el('div', {},
-      el('div', { class: 'hdr-title' }, title),
+      // The view title is the page's main heading (screen readers jump to h1)
+      el('h1', { class: 'hdr-title' }, title),
       sub ? el('div', { class: 'hdr-sub' }, sub) : null,
     ));
   }

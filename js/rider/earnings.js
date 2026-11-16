@@ -36,13 +36,16 @@ function earningsFor(userId) {
     cur.trips += trips; cur.distanceKm += km;
     daily.set(key, cur);
   };
-  // seeded history for the previous 29 days
-  seededEarnings(30).forEach((d) => {
-    add(dayKey(d.date), d.gross, d.trips, d.distanceKm);
-  });
-  // live activity
+  // Sample 30-day history only for the demo rider account. Real riders see
+  // only money from trips they actually completed (and can only cash that out).
+  if (userId === 'demo-rider') {
+    seededEarnings(30).forEach((d) => {
+      add(dayKey(d.date), d.gross, d.trips, d.distanceKm);
+    });
+  }
+  // live activity (trip date = when it was paid)
   realTrips(userId).forEach((b) => {
-    add(dayKey(b.completedAt || b.createdAt), b.fare.total, 1, b.distanceKm);
+    add(dayKey((b.receipt && b.receipt.paidAt) || b.completedAt || b.createdAt), b.fare.total, 1, b.distanceKm);
   });
   return { daily };
 }
@@ -97,7 +100,7 @@ const earningsView = {
     /* chart */
     const chartCard = el('div', { class: 'card card-pad' });
     chartCard.appendChild(el('div', { class: 'row-between', style: 'margin-bottom:4px' },
-      el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'chart-column' }), 'Net earnings · last 7 days')));
+      el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'chart-column' }), 'Net earnings · last 7 days')));
     const chartBox = el('div', { class: 'chart-wrap' });
     chartCard.appendChild(chartBox);
     wrap.appendChild(chartCard);
@@ -115,30 +118,36 @@ const earningsView = {
         muted: !d || !d.trips,
       });
     }
-    chartCard.appendChild(el('p', { class: 't-xs', style: 'margin-top:2px' }, 'Hover or tap a bar to see that day\u2019s net earnings.'));
+    chartCard.appendChild(el('p', { class: 't-xs', style: 'margin-top:2px' }, wk.trips
+      ? 'Hover or tap a bar to see that day\u2019s net earnings.'
+      : 'No completed trips this week yet. Your earnings will show here after your first trip.'));
     setTimeout(() => barChart(chartBox, chartData, { height: 210, showValues: false }), 50);
 
     /* monthly breakdown */
+    const moFrom = dayKey(Date.now() - 29 * 86400000);
+    const moKm = [...daily.entries()].filter(([k]) => k >= moFrom).reduce((s, [, d]) => s + (d.distanceKm || 0), 0);
     const bd = el('div', { class: 'card card-pad' });
-    bd.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:8px' },
+    bd.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:8px' },
       el('i', { 'data-lucide': 'receipt-text' }), 'This month breakdown'));
     const lines = el('div', { class: 'fare-lines' });
     [
       ['Gross fares', peso(mo.gross)],
       ['Platform commission (20%)', '−' + peso(mo.commission)],
       ['Net earnings', peso(mo.net)],
-      ['Distance driven', `${mo.trips > 0 ? Math.round(mo.trips * 6.4) : 0} km (est.)`],
+      ['Distance driven', `${moKm.toFixed(1)} km`],
       ['Completed trips', `${mo.trips}`],
     ].forEach(([k, v], i) => lines.appendChild(el('div', { class: `fare-line${i === 2 ? ' fare-line--total' : ''}` },
       el('span', { class: 'fl-label' }, k), el('span', { class: 'fl-val t-num' }, v))));
     bd.appendChild(lines);
     bd.appendChild(el('p', { class: 't-xs', style: 'margin-top:8px' },
-      'Daily history beyond today is drawn from your trip records, so charts and totals stay stable across reloads.'));
+      userId === 'demo-rider'
+        ? 'The demo account includes 30 days of sample trips so the charts have data.'
+        : 'Totals are calculated from the trips you completed in the last 30 days.'));
     wrap.appendChild(bd);
 
     /* cash out */
     const co = el('div', { class: 'card card-pad' });
-    co.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:4px' },
+    co.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:4px' },
       el('i', { 'data-lucide': 'banknote' }), 'Cash out'));
     co.appendChild(el('p', { class: 't-small' },
       `Available: ${peso(Math.max(0, balance))}. Minimum cash-out is ₱200. Payouts are sent to your registered account.`));

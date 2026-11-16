@@ -24,7 +24,8 @@ export function avatarElLite(person, size = '') {
 }
 
 export function starsRead(value = 0) {
-  const wrap = el('span', { class: 'cl-stars-read', 'aria-label': `${value} out of 5 stars` });
+  // role="img" makes the aria-label valid on a <span> (screen readers read "4 out of 5 stars")
+  const wrap = el('span', { class: 'cl-stars-read', role: 'img', 'aria-label': `${value} out of 5 stars` });
   for (let i = 1; i <= 5; i++) {
     wrap.appendChild(el('i', { 'data-lucide': 'star', class: i <= Math.round(value) ? '' : 'star-off' }));
   }

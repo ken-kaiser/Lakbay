@@ -131,7 +131,8 @@ const activityView = {
     searchWrap.appendChild(search);
     bar.appendChild(searchWrap);
 
-    const chipRow = el('div', { class: 'cl-filter-row', role: 'tablist', 'aria-label': 'Filter by status' });
+    // Toggle buttons in a group (they filter a list; they don't switch tab panels)
+    const chipRow = el('div', { class: 'cl-filter-row', role: 'group', 'aria-label': 'Filter by status' });
     const svcSel = el('select', { class: 'select', 'aria-label': 'Filter by service type' },
       el('option', { value: 'all' }, 'All services'),
       RIDE_CATEGORIES.map((c) => el('option', { value: c.id }, c.name)));
@@ -154,8 +155,8 @@ const activityView = {
         ['all', 'All'], ['completed', 'Completed'], ['cancelled', 'Cancelled'],
       ].forEach(([id, label]) => {
         const chip = el('button', {
-          class: `chip${filters.status === id ? ' selected' : ''}`, type: 'button', role: 'tab',
-          'aria-selected': String(filters.status === id),
+          class: `chip${filters.status === id ? ' selected' : ''}`, type: 'button',
+          'aria-pressed': String(filters.status === id),
         }, label);
         chip.addEventListener('click', () => { filters.status = id; paintChips(); paintList(); });
         chipRow.appendChild(chip);
@@ -178,7 +179,7 @@ const activityView = {
         listWrap.appendChild(el('div', { class: 'empty', style: 'padding:36px 18px' },
           el('img', { src: 'assets/illustrations/empty-rides.png', alt: '', style: 'width:130px;margin:0 auto 12px;opacity:0.9',
             onerror: (e) => e.target.remove() }),
-          el('h4', {}, 'No rides here yet'),
+          el('h3', {}, 'No rides here yet'),
           el('p', {}, filters.q || filters.status !== 'all' || filters.service !== 'all'
             ? 'Nothing matches your filters. Try clearing the search or switching the status.'
             : 'Your completed rides will show up here with receipts and quick rebooking.'),

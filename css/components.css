@@ -39,7 +39,7 @@
 .btn--ghost-danger:hover:not(:disabled) { background: var(--c-danger-soft); }
 .btn--soft { background: var(--c-primary-soft); color: #3D5803; }
 .btn--soft:hover:not(:disabled) { background: #E4F5B4; }
-.btn--sm { min-height: 34px; padding: 0 12px; font-size: 13px; border-radius: var(--r-sm); gap: 6px; }
+.btn--sm { min-height: 34px; padding: 0 12px; font-size: 13px; gap: 6px; } /* same radius as other buttons */
 .btn--sm i, .btn--sm svg { width: 14px; height: 14px; }
 .btn--lg { min-height: 48px; padding: 0 22px; font-size: 15px; }
 .btn--block { width: 100%; }
@@ -69,7 +69,7 @@
   position: absolute; top: 4px; right: 4px;
   min-width: 16px; height: 16px; padding: 0 4px;
   background: var(--c-danger); color: #fff; border-radius: var(--r-full);
-  font-size: 9.5px; font-weight: 600; font-style: normal;
+  font-size: 12px; font-weight: 600; font-style: normal;
   display: inline-flex; align-items: center; justify-content: center;
   border: 2px solid var(--c-surface);
 }
@@ -177,7 +177,10 @@
   border-radius: var(--r-lg); box-shadow: var(--sh-1);
 }
 .card--flat { box-shadow: none; }
-.card-pad { padding: 18px; }
+/* One padding for every card in the app (set in global.css) */
+.card-pad { padding: var(--card-pad); }
+/* Boxes nested inside a panel or dialog (route summary, trip summary) */
+.card--inset { padding: 12px 14px; }
 .card-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 14px 18px; border-bottom: 1px solid var(--c-line);
@@ -265,7 +268,7 @@
   font-size: 13px; font-weight: 650; color: #fff; letter-spacing: 0.02em;
   border: 1px solid rgba(23, 34, 29, 0.08);
 }
-.avatar--sm { width: 30px; height: 30px; font-size: 11px; }
+.avatar--sm { width: 30px; height: 30px; font-size: 12px; }
 .avatar--lg { width: 56px; height: 56px; font-size: 18px; }
 .avatar--xl { width: 72px; height: 72px; font-size: 23px; }
 .avatar-ring { box-shadow: 0 0 0 3px var(--c-primary-soft); }
@@ -334,7 +337,7 @@
 .empty .empty-img { width: 130px; height: 130px; margin-bottom: 8px; border-radius: var(--r-lg); object-fit: cover; }
 .empty .empty-icon { color: var(--c-ink-4); margin-bottom: 2px; }
 .empty .empty-icon i, .empty .empty-icon svg { width: 30px; height: 30px; }
-.empty h4 { font-size: var(--fs-lg); font-weight: 600; }
+.empty h2, .empty h3, .empty h4 { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 600; }
 .empty p { font-size: var(--fs-sm); color: var(--c-ink-3); max-width: 340px; }
 .empty .btn { margin-top: 12px; }
 
@@ -479,7 +482,7 @@
 .notif-item .n-icon--danger { background: var(--c-danger-soft); color: var(--c-danger); }
 .notif-item .n-title { font-size: var(--fs-sm); font-weight: 600; }
 .notif-item .n-body { font-size: var(--fs-xs); color: var(--c-ink-3); margin-top: 1px; }
-.notif-item .n-time { font-size: 10px; color: var(--c-ink-4); margin-top: 3px; }
+.notif-item .n-time { font-size: 12px; color: var(--c-ink-4); margin-top: 3px; }
 @media (max-width: 599px) {
   .notif-panel {
     position: fixed; inset: 0; width: auto; max-height: none;
@@ -492,7 +495,7 @@
 .tip::after {
   content: attr(data-tip);
   position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%) translateY(2px);
-  background: var(--c-ink); color: #fff; font-size: 11px; font-weight: 550;
+  background: var(--c-ink); color: #fff; font-size: 12px; font-weight: 550;
   padding: 5px 9px; border-radius: var(--r-sm); white-space: nowrap;
   opacity: 0; pointer-events: none;
   transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
@@ -504,7 +507,7 @@
 .table-wrap { overflow-x: auto; border: 1px solid var(--c-line); border-radius: var(--r-lg); background: var(--c-surface); }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); min-width: 560px; }
 .table th {
-  text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600;
+  text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600;
   color: var(--c-ink-3); text-transform: uppercase; letter-spacing: 0.05em;
   background: var(--c-surface-2); border-bottom: 1px solid var(--c-line); white-space: nowrap;
 }
@@ -541,8 +544,8 @@
 .chart-hit { fill: transparent; cursor: pointer; outline: none; }
 .chart-hit:focus-visible { fill: rgba(150, 205, 0, 0.12); rx: 6; }
 .chart-grid-line { stroke: var(--c-line); stroke-width: 1; }
-.chart-label { font-size: 10px; fill: var(--c-ink-4); font-family: var(--font-ui); }
-.chart-value { font-size: 10.5px; font-weight: 600; fill: var(--c-ink-2); font-family: var(--font-ui); }
+.chart-label { font-size: 12px; fill: var(--c-ink-4); font-family: var(--font-ui); }
+.chart-value { font-size: 12px; font-weight: 600; fill: var(--c-ink-2); font-family: var(--font-ui); }
 /* floating value tooltip (positioned by JS over the SVG) */
 .chart-tip {
   position: absolute; z-index: 5; pointer-events: none;
@@ -560,7 +563,7 @@
   border: 5px solid transparent; border-top-color: var(--c-ink);
 }
 .chart-tip .chart-tip-value { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
-.chart-tip .chart-tip-label { font-size: 10.5px; color: rgba(255,255,255,0.72); }
+.chart-tip .chart-tip-label { font-size: 12px; color: rgba(255,255,255,0.72); }
 
 /* ---------- Map ---------- */
 .map-box { position: relative; background: var(--c-surface-2); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--c-line); }
@@ -584,7 +587,7 @@
 .map-tag {
   position: absolute; z-index: 500; top: 12px; left: 12px;
   background: rgba(16, 26, 23, 0.82); color: #fff; backdrop-filter: blur(6px);
-  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.05em;
   padding: 4px 10px; border-radius: var(--r-full);
   display: inline-flex; align-items: center; gap: 5px; text-transform: uppercase;
 }
@@ -602,6 +605,10 @@
 .pin-mark--pickup .pin-bubble { background: var(--c-primary); }
 .pin-mark--drop .pin-bubble { background: var(--c-dark); }
 .pin-mark--place .pin-bubble { background: var(--c-accent); }
+/* Waiting passenger on the rider demand map (clickable) */
+.pin-mark--passenger .pin-bubble { background: var(--c-primary); box-shadow: 0 0 0 3px rgba(182, 245, 0, 0.35); }
+.pin-mark--passenger i, .pin-mark--passenger svg { color: var(--c-dark); }
+.leaflet-marker-icon[role="button"]:hover .pin-mark--passenger .pin-bubble { box-shadow: 0 0 0 6px rgba(182, 245, 0, 0.45); }
 .pin-mark i, .pin-mark svg { color: #fff; }
 .pin-mark--pickup i, .pin-mark--pickup svg { color: var(--c-dark); }
 .pin-mark--drop i, .pin-mark--drop svg { color: var(--c-primary); }
@@ -753,7 +760,9 @@
 
 .promo-rail {
   display: flex; gap: 16px;
-  overflow-x: auto; scroll-snap-type: x mandatory;
+  /* proximity, not mandatory: a light swipe moves a little instead of
+     forcing a jump to the next card */
+  overflow-x: auto; scroll-snap-type: x proximity; overscroll-behavior-x: contain;
   padding: 2px 2px 10px;
   scrollbar-width: thin;
 }
@@ -778,7 +787,7 @@
   min-width: 0; padding: 22px 24px 20px;
 }
 .promo-card .pc-kicker {
-  font-size: 10px; font-weight: 750; letter-spacing: 0.13em;
+  font-size: 12px; font-weight: 750; letter-spacing: 0.13em;
   text-transform: uppercase; margin-bottom: 10px;
 }
 .promo-card .pc-head {
@@ -803,7 +812,7 @@
 }
 /* code chip = quiet voucher info; the solid button carries the action */
 .promo-card .pc-code {
-  font-size: 11px; font-weight: 750; letter-spacing: 0.09em;
+  font-size: 12px; font-weight: 750; letter-spacing: 0.09em;
   padding: 5px 11px; border-radius: var(--r-full); width: fit-content;
   text-transform: uppercase;
 }
@@ -811,7 +820,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-height: 32px; padding: 0 13px;
   border-radius: var(--r-sm); border: 0;
-  font-size: 11.5px; font-weight: 700; letter-spacing: 0.01em;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
   white-space: nowrap;
   transition: background var(--motion-fast) var(--ease-standard), transform var(--motion-instant) var(--ease-standard), filter var(--motion-fast) var(--ease-standard);
 }
@@ -949,7 +958,7 @@
   padding: 8px 12px; border-radius: 14px; font-size: var(--fs-md); line-height: 1.4;
   word-break: break-word;
 }
-.msg .msg-meta { font-size: 9.5px; color: var(--c-ink-4); padding: 0 4px; display: flex; gap: 5px; align-items: center; }
+.msg .msg-meta { font-size: 12px; color: var(--c-ink-4); padding: 0 4px; display: flex; gap: 5px; align-items: center; }
 .msg--in .msg-bubble { background: var(--c-surface); border: 1px solid var(--c-line); border-bottom-left-radius: 5px; align-self: flex-start; }
 .msg--out .msg-bubble { background: var(--c-primary-deep); color: #fff; border-bottom-right-radius: 5px; align-self: flex-end; }
 .msg--out .msg-meta { justify-content: flex-end; }
@@ -971,7 +980,7 @@
 .pay-opt .po-logo {
   width: 36px; height: 36px; border-radius: var(--r-sm);
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
 }
 .pay-opt .po-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .pay-opt .po-name { font-size: var(--fs-md); font-weight: 550; }
@@ -994,7 +1003,7 @@
 
 /* ---------- Misc ---------- */
 .kbd-hint {
-  font-size: 10.5px; color: var(--c-ink-4); border: 1px solid var(--c-line);
+  font-size: 12px; color: var(--c-ink-4); border: 1px solid var(--c-line);
   border-radius: var(--r-xs); padding: 1px 6px; background: var(--c-surface-2); font-weight: 550;
 }
 .divider { height: 1px; background: var(--c-line); border: 0; margin: 14px 0; }
@@ -1026,7 +1035,7 @@
 }
 .route-line-item > .rl-dot--end { border-color: var(--c-ink); background: var(--c-ink); }
 .route-line-item .rl-label {
-  display: block; font-size: 10.5px; font-weight: 600;
+  display: block; font-size: 12px; font-weight: 600;
   letter-spacing: 0.07em; text-transform: uppercase; color: var(--c-ink-4);
 }
 .route-line-item .rl-value {

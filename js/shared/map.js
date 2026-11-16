@@ -25,6 +25,7 @@ const PIN_SVGS = {
   pickup: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
   drop: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="currentColor" stroke="none"/></svg>',
   place: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+  passenger: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>',
   flag: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4c4-2.5 8 2.5 12 0v9c-4 2.5-8-2.5-12 0"/><path d="M4 15c4-2.5 8 2.5 12 0"/></svg>',
 };
 
@@ -87,7 +88,7 @@ export function createMap(container, { center = [14.5995, 120.9822], zoom = 12, 
       map.setView([latlng.lat || latlng[0], latlng.lng || latlng[1]], zoom, { animate });
     },
     /* marker types: pickup | drop | place | vehicle | pulse | me */
-    setMarker(key, latlng, type = 'pickup', { label = null, bearing = null, glide = false } = {}) {
+    setMarker(key, latlng, type = 'pickup', { label = null, bearing = null, glide = false, onClick = null } = {}) {
       const lat = latlng.lat ?? latlng[0];
       const lng = latlng.lng ?? latlng[1];
       let html = '';
@@ -117,10 +118,18 @@ export function createMap(container, { center = [14.5995, 120.9822], zoom = 12, 
         }
         if (window.lucide) window.lucide.createIcons({ nameAttr: 'data-lucide' });
       } else {
-        state.markers[key] = L.marker([lat, lng], { icon, zIndexOffset: z, keyboard: false }).addTo(map);
+        state.markers[key] = L.marker([lat, lng], { icon, zIndexOffset: z, keyboard: !!onClick }).addTo(map);
         if (window.lucide) window.lucide.createIcons({ nameAttr: 'data-lucide' });
       }
-      return state.markers[key];
+      const mk = state.markers[key];
+      if (mk._lbClick) { mk.off('click', mk._lbClick); mk._lbClick = null; }
+      if (onClick) {
+        mk._lbClick = () => onClick(key);
+        mk.on('click', mk._lbClick);
+        const elm = mk.getElement();
+        if (elm) { elm.style.cursor = 'pointer'; elm.setAttribute('role', 'button'); if (label) elm.setAttribute('aria-label', label); }
+      }
+      return mk;
     },
     removeMarker(key) {
       if (state.markers[key]) { map.removeLayer(state.markers[key]); delete state.markers[key]; }

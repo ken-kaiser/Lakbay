@@ -114,7 +114,7 @@ async function buildSuggestionList({ userId, query, container, onPick, origin })
     container.appendChild(el('div', { class: 'empty', style: 'padding:24px 16px' },
       el('img', { class: 'empty-img', src: 'assets/illustrations/empty-search.png', alt: '',
         onerror: (e) => e.target.remove() }),
-      el('h4', {}, q ? 'No matching places' : 'Where to?'),
+      el('h3', {}, q ? 'No matching places' : 'Where to?'),
       el('p', {}, q
         ? 'Try a mall, terminal, street, or barangay name — or use "Choose on map".'
         : 'Type a mall, street, or barangay to search places near you.'),
@@ -368,8 +368,8 @@ const ridesView = {
     wrap.appendChild(preview);
 
     /* category list */
-    const listCard = el('div', { class: 'card', style: 'padding:14px' });
-    listCard.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:10px' }, 'Ride options'));
+    const listCard = el('div', { class: 'card card-pad' });
+    listCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:10px' }, 'Ride options'));
     const rideList = el('div', { class: 'cl-ride-list', role: 'radiogroup', 'aria-label': 'Ride category' });
     listCard.appendChild(rideList);
     wrap.appendChild(listCard);

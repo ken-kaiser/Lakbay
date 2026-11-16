@@ -57,7 +57,8 @@ function splitLabel(label) {
 
 function headNode(p) {
   const { big, tail } = splitLabel(p.label);
-  return el('h4', { class: 'pc-head' },
+  // h3: promo cards sit under an h2 section heading (no skipped levels)
+  return el('h3', { class: 'pc-head' },
     el('span', { class: 'pc-big' }, big),
     tail ? el('span', { class: 'pc-tail' }, tail) : null);
 }
