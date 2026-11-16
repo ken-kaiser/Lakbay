@@ -134,7 +134,7 @@ const riderHistoryView = {
       if (!items.length) {
         listWrap.appendChild(el('div', { class: 'empty', style: 'padding:36px 18px' },
           el('div', { class: 'empty-icon' }, el('i', { 'data-lucide': 'history' })),
-          el('h4', {}, 'No records yet'),
+          el('h2', {}, 'No records yet'), // first heading under the page h1
           el('p', {}, 'Completed trips and request decisions will be listed here.')));
       } else {
         items.forEach((it) => {

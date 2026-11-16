@@ -7,7 +7,7 @@ import { App } from '../app.js';
 import { Bookings, Prefs, Notifs, Users } from '../storage.js';
 import { RequestManager } from './requests.js';
 import { earningsFor, todayKey, sumRange } from './earnings.js';
-import { PLACES, nearbyPlaces } from '../data.js';
+import { PLACES, nearbyPlaces, DEMO_PASSENGERS } from '../data.js';
 import { el, clear, qs } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
@@ -18,7 +18,7 @@ import { peso, timeAgo, firstNameOf } from '../shared/format.js';
 import { avatarElLite } from '../shared/ui-lite.js';
 import { tickValue } from '../shared/motion.js';
 
-const state = { map: null, ticker: null, onlineAt: null };
+const state = { map: null, ticker: null, onlineAt: null, area: '' };
 
 function verificationOf() {
   const me = Users.byId(App.user.id) || App.user;
@@ -152,9 +152,9 @@ const dashboardView = {
     state.ticker = setInterval(paintStats, 15000);
 
     /* ---- demand map ---- */
-    const mapCard = el('div', { class: 'card', style: 'padding:14px' });
+    const mapCard = el('div', { class: 'card card-pad' });
     mapCard.appendChild(el('div', { class: 'row-between', style: 'margin-bottom:10px' },
-      el('h3', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'map' }), 'Demand around you')));
+      el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'map' }), 'Demand around you')));
     const mapBox = el('div', { class: 'map-box rd-map-dash' });
     mapCard.appendChild(mapBox);
     const demandNote = el('p', { class: 't-xs', style: 'margin-top:8px' }, 'Finding your location\u2026');
@@ -164,7 +164,7 @@ const dashboardView = {
     /* ---- recent activity ---- */
     const acts = Prefs.get(userId, 'riderActions', []).slice(0, 6);
     const actCard = el('div', { class: 'card card-pad' });
-    actCard.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:6px' },
+    actCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:6px' },
       el('i', { 'data-lucide': 'history' }), 'Recent activity'));
     if (acts.length) {
       const list = el('div', { class: 'list' });
@@ -183,21 +183,26 @@ const dashboardView = {
     } else {
       actCard.appendChild(el('div', { class: 'empty', style: 'padding:20px 12px' },
         el('div', { class: 'empty-icon' }, el('i', { 'data-lucide': 'inbox' })),
-        el('h4', {}, 'No activity yet'),
+        el('h3', {}, 'No activity yet'),
         el('p', {}, 'Your accepts, declines, and completed trips will appear here.')));
     }
     wrap.appendChild(actCard);
 
     /* ---- service zones strip ---- */
     const zones = el('div', { class: 'card card-pad' });
-    zones.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:8px' },
+    zones.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:8px' },
       el('i', { 'data-lucide': 'map-pinned' }), 'Service zones'));
     const zoneRow = el('div', { class: 'zone-list' });
-    ['Makati / BGC', 'QC Diliman-Cubao', 'Ortigas / Pasig', 'Manila / Ermita', 'Pasay / MOA'].forEach((z) => {
-      zoneRow.appendChild(el('span', { class: 'zone-item' }, z));
-    });
+    // Show the rider's own area once known; Manila zones only as the no-GPS default
+    const lastLoc = getLastLocation();
+    const zoneNames = lastLoc && lastLoc.city
+      ? [lastLoc.city, lastLoc.name].filter((v, i, a) => v && a.indexOf(v) === i)
+      : ['Makati / BGC', 'QC Diliman-Cubao', 'Ortigas / Pasig', 'Manila / Ermita', 'Pasay / MOA'];
+    zoneNames.forEach((z) => zoneRow.appendChild(el('span', { class: 'zone-item' }, z)));
     zones.appendChild(zoneRow);
-    zones.appendChild(el('p', { class: 't-xs', style: 'margin-top:8px' }, 'All zones are actively served. Boundary rules are configured per city.'));
+    zones.appendChild(el('p', { class: 't-xs', style: 'margin-top:8px' }, lastLoc && lastLoc.city
+      ? `You're in an active service area. Requests come from passengers around ${lastLoc.city}.`
+      : 'All zones are actively served. Boundary rules are configured per city.'));
     wrap.appendChild(zones);
 
     root.appendChild(wrap);
@@ -213,16 +218,75 @@ const dashboardView = {
       if (geo) myPos = { lat: geo.lat, lng: geo.lng };
       state.map = createMap(mapBox, { center: [myPos.lat, myPos.lng], zoom: 14 });
       if (!state.map) return;
-      // pseudo demand spots scattered around the driver's position
-      for (let i = 0; i < 7; i++) {
-        const ang = (i / 7) * Math.PI * 2 + (myPos.lat * 100 % 1);
-        const dist = 0.004 + ((i * 37) % 10) * 0.0011;
-        state.map.setMarker('demand-' + i, { lat: myPos.lat + Math.sin(ang) * dist, lng: myPos.lng + Math.cos(ang) * dist }, 'pulse');
+      try { state.map.map.invalidateSize(); } catch (e) { /* noop */ } // measure the real box before placing pins
+      // Waiting passengers scattered around the driver. Tapping one opens
+      // its ride request, so the full driver flow can be tested solo.
+      const waiting = [];
+      // Place pins inside the visible map area (with a margin), so all of them
+      // show on narrow phone maps too, not just on wide desktop maps.
+      const sz = state.map.map.getSize();
+      const centerPt = state.map.map.latLngToContainerPoint([myPos.lat, myPos.lng]);
+      const rx = Math.max(40, sz.x / 2 - 34);
+      const ry = Math.max(40, sz.y / 2 - 44);
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2 + (myPos.lat * 100 % 1);
+        const frac = 0.45 + ((i * 37) % 10) / 20; // 0.45–0.95 of the safe radius
+        const pt = state.map.map.containerPointToLatLng([centerPt.x + Math.cos(ang) * rx * frac, centerPt.y + Math.sin(ang) * ry * frac]);
+        const pos = { lat: pt.lat, lng: pt.lng };
+        const pax = DEMO_PASSENGERS[i % DEMO_PASSENGERS.length];
+        // drop-off 3–7 km away in a different direction
+        const dAng = ang + Math.PI * (0.6 + (i % 3) * 0.2);
+        const dKm = 3 + (i % 5);
+        const drop = {
+          lat: pos.lat + (Math.sin(dAng) * dKm) / 111.32,
+          lng: pos.lng + (Math.cos(dAng) * dKm) / (111.32 * Math.cos(pos.lat * Math.PI / 180)),
+        };
+        waiting.push({ key: 'pax-' + i, pos, drop, pax });
       }
+      waiting.forEach((w) => {
+        state.map.setMarker(w.key, w.pos, 'passenger', {
+          label: `${w.pax.name.split(' ')[0]} · tap`,
+          onClick: () => openPassenger(w),
+        });
+      });
       state.map.setMarker('me', myPos, 'me');
       reverseGeocode(myPos.lat, myPos.lng).then((place) => {
-        demandNote.textContent = `Live demand estimates around ${place.city || place.area || 'your area'}.`;
+        state.area = place.city || place.area || '';
+        demandNote.textContent = `${waiting.length} passengers waiting around ${state.area || 'your area'}. Tap one to view their ride request.`;
       });
+
+      async function openPassenger(w) {
+        const meNow = Users.byId(userId);
+        if (!isVerified()) {
+          Toast.warn('Verification needed', 'Complete rider verification before accepting rides.');
+          App.navigate('profile', { query: { tab: 'verification' } });
+          return;
+        }
+        if (!meNow || !meNow.vehicle) {
+          Toast.warn('Add your vehicle', 'Add your vehicle details in Profile before accepting rides.');
+          App.navigate('profile', { query: { tab: 'verification' } });
+          return;
+        }
+        if (openPassenger.busy) return; // ignore double taps while loading
+        openPassenger.busy = true;
+        demandNote.textContent = `Loading ${w.pax.name.split(' ')[0]}'s ride request\u2026`;
+        Toast.info('Opening request', `Getting ${w.pax.name.split(' ')[0]}'s pickup and drop-off\u2026`);
+        let pk, dp;
+        try {
+          [pk, dp] = await Promise.all([
+            reverseGeocode(w.pos.lat, w.pos.lng),
+            reverseGeocode(w.drop.lat, w.drop.lng),
+          ]);
+        } finally { openPassenger.busy = false; }
+        if (!mapBox.isConnected) return; // rider left the dashboard meanwhile
+        demandNote.textContent = `Ride request from ${w.pax.name}.`;
+        const created = RequestManager.createTestRequest(meNow, {
+          passenger: w.pax,
+          pickup: { id: null, name: pk.name || 'Passenger pickup', address: pk.address, lat: w.pos.lat, lng: w.pos.lng },
+          dropoff: { id: null, name: dp.name || 'Passenger drop-off', address: dp.address, lat: w.drop.lat, lng: w.drop.lng },
+        });
+        if (created && state.map) state.map.removeMarker(w.key);
+      }
     }, 60);
   },
 

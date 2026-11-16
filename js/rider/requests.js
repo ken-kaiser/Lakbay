@@ -36,9 +36,11 @@ const RequestManager = {
     return Bookings.activeFor(userId, 'rider').filter((b) => b.riderId === userId).length > 0;
   },
 
-  /* Called for every searching booking seen while online */
+  /* Called for every searching booking seen while online.
+     Test requests the rider created themselves bypass the online check. */
   consider(booking) {
-    if (!this.cfg || !this._online || this._modal) return;
+    if (!this.cfg || this._modal) return;
+    if (!this._online && !(booking && booking.testRequest)) return;
     if (!booking || booking.status !== 'searching' || booking.riderId) return;
     if (this._seen.has(booking.id)) return;
     if (this.hasActiveTrip(this.cfg.getUser().id)) return;
@@ -76,7 +78,7 @@ const RequestManager = {
     ));
 
     /* route */
-    const routeBox = el('div', { class: 'card card--flat', style: 'padding:12px 13px' });
+    const routeBox = el('div', { class: 'card card--flat card--inset' });
     routeBox.appendChild(el('div', { class: 'route-line-item' },
       el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
         el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, booking.pickup.name))));
@@ -178,9 +180,15 @@ const RequestManager = {
   },
 
   /* ---------- test request generator (engine-internal) ---------- */
-  createTestRequest(me) {
+  /* opts.pickup / opts.dropoff / opts.passenger: build the request from a
+     specific waiting passenger the rider tapped on the demand map. */
+  createTestRequest(me, opts = {}) {
     if (this.hasActiveTrip(me.id)) {
       Toast.warn('You have an active trip', 'Finish your current ride before receiving new requests.');
+      return null;
+    }
+    if (this._modal) {
+      Toast.info('Request already open', 'Accept or decline the current request first.');
       return null;
     }
     // Test requests happen around the rider's real location. The built-in
@@ -207,9 +215,11 @@ const RequestManager = {
       a = spot(0.5, 2, 'Passenger pickup');
       b = spot(3, 8, 'Passenger drop-off');
     }
+    if (opts.pickup) a = opts.pickup;
+    if (opts.dropoff) b = opts.dropoff;
     const catIds = (me.vehicle && me.vehicle.categoryIds && me.vehicle.categoryIds.length) ? me.vehicle.categoryIds : ['car'];
     const cat = RIDE_CATEGORIES.find((c) => c.id === catIds[0]) || RIDE_CATEGORIES[1];
-    const pax = DEMO_PASSENGERS[Math.floor(Math.random() * DEMO_PASSENGERS.length)];
+    const pax = opts.passenger || DEMO_PASSENGERS[Math.floor(Math.random() * DEMO_PASSENGERS.length)];
     const route = generateRoute(a, b);
     const km = Math.round(routeLengthKm(route) * 10) / 10;
     const mins = estimateDurationMin(km);

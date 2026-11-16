@@ -239,7 +239,7 @@ const tripView = {
     body.appendChild(progress);
 
     /* route summary */
-    body.appendChild(el('div', { class: 'card card--flat', style: 'padding:12px 13px' },
+    body.appendChild(el('div', { class: 'card card--flat card--inset' },
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
           el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, b.pickup.name))),
@@ -418,9 +418,9 @@ function buildChatPane(b) {
   sendBtn.addEventListener('click', () => send(input.value));
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(input.value); });
 
-  const quickRow = el('div', { class: 'chat-quick', role: 'list', 'aria-label': 'Quick replies' });
+  const quickRow = el('div', { class: 'chat-quick', role: 'group', 'aria-label': 'Quick replies' });
   QUICK_MSGS_PASSENGER.forEach((q) => {
-    const chip = el('button', { class: 'chip chip--soft', type: 'button', role: 'listitem' }, q);
+    const chip = el('button', { class: 'chip chip--soft', type: 'button' }, q);
     chip.addEventListener('click', () => send(q));
     quickRow.appendChild(chip);
   });

@@ -90,12 +90,12 @@ const walletView = {
     /* ---- methods card ---- */
     const methodsCard = el('div', { class: 'card card-pad cl-pay-manage' });
     methodsCard.appendChild(el('div', { class: 'card-head', style: 'padding:0;margin-bottom:2px' },
-      el('h3', { class: 'cl-section-title' }, 'Payment methods')));
+      el('h2', { class: 'cl-section-title' }, 'Payment methods')));
 
     function paintMethods() {
       clear(methodsCard);
       methodsCard.appendChild(el('div', { class: 'card-head', style: 'padding:0;margin-bottom:2px' },
-        el('h3', { class: 'cl-section-title' }, 'Payment methods')));
+        el('h2', { class: 'cl-section-title' }, 'Payment methods')));
       const list = repoList(userId);
       list.forEach((m) => {
         const meta = methodMeta(m.id);
@@ -147,7 +147,7 @@ const walletView = {
 
     /* ---- transactions card ---- */
     const txCard = el('div', { class: 'card card-pad' });
-    txCard.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:8px' }, 'Payment history'));
+    txCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:8px' }, 'Payment history'));
 
     const paid = Bookings.all()
       .filter((b) => b.passengerId === userId && b.status === 'completed')
@@ -170,14 +170,14 @@ const walletView = {
       txCard.appendChild(el('div', { class: 'empty', style: 'padding:24px 16px' },
         el('img', { class: 'empty-img', src: 'assets/illustrations/empty-rides.png', alt: '',
           onerror: (e) => e.target.remove() }),
-        el('h4', {}, 'No payments yet'),
+        el('h3', {}, 'No payments yet'),
         el('p', {}, 'Completed rides with their fare receipts will appear here.')));
     }
     wrap.appendChild(txCard);
 
     /* ---- promo / credits info ---- */
     const infoCard = el('div', { class: 'card card-pad' });
-    infoCard.appendChild(el('h3', { class: 'cl-section-title', style: 'margin-bottom:6px' }, 'Promos & credits'));
+    infoCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:6px' }, 'Promos & credits'));
     infoCard.appendChild(el('p', { class: 't-small' },
       'Lakbay credits and vouchers are applied per ride at checkout. Explore today\'s promo codes on your home screen — try LAKBAY50 on your next booking.'));
     wrap.appendChild(infoCard);

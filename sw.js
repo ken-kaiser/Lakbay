@@ -10,7 +10,7 @@
      so typography works offline too.
    ========================================================================== */
 
-const VERSION = 'lakbay-v11';
+const VERSION = 'lakbay-v14';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 

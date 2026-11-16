@@ -212,6 +212,10 @@ function RiderLogDecline(bookingId, riderId) {
 export function riderStatusAdvance(bookingId, nextStatus) {
   const b = Bookings.byId(bookingId);
   if (!b) return null;
+  // completeTrip sets the status itself (plus payment + receipt). Setting
+  // 'completed' first made it exit early, so rider-completed trips were
+  // never marked paid and had no receipt.
+  if (nextStatus === 'completed') return completeTrip(bookingId, { by: 'rider' });
   const updated = Bookings.update(bookingId, { status: nextStatus }, { by: 'rider' });
 
   const notes = {
@@ -230,9 +234,6 @@ export function riderStatusAdvance(bookingId, nextStatus) {
       const cur = Bookings.byId(bookingId);
       if (cur && cur.status === 'in_progress' && cur.riderSource === 'live') return; // real chat
     }, 1000);
-  }
-  if (nextStatus === 'completed') {
-    return completeTrip(bookingId, { by: 'rider' });
   }
   return updated;
 }

@@ -11,16 +11,13 @@
                   ronnel@lakbay.demo / demo1234 (rider)
    ========================================================================== */
 import { Users, Session, Store, ensureSeeded, seedDemoAccounts, hashPassword } from '../storage.js';
-import { RIDE_CATEGORIES, PROMOS } from '../data.js';
+import { RIDE_CATEGORIES, PROMOS, PAYMENT_METHODS, estimateFare, estimateDurationMin, applyPromo, getPromo } from '../data.js';
 import { el, clear, qs, h } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
 import { validate, attachLiveValidation, formatPhoneInput, phoneDisplay, passwordStrength } from '../shared/validation.js';
-import { initReveals } from '../shared/motion.js';
-import { initSmoothScroll, initParallax, initPointerTilt } from '../shared/motion-plus.js';
+import { initReveals, prefersReducedMotion, withViewTransition } from '../shared/motion.js';
 import { createInstallButton, maybeShowBanner } from '../shared/install.js';
-import { createCarousel } from '../shared/carousel.js';
-import { promoRail } from '../shared/promo.js';
 import { logoSVG } from '../app.js';
 
 const root = qs('#auth-root');
@@ -34,8 +31,16 @@ function track(target, event, fn, opts) {
   landingOff.push(() => target.removeEventListener(event, fn, opts));
 }
 
-/* Buttery scroll controller — created per landing render, used by navlinks */
-let smoothScroll = null;
+/* Jump to a landing section below the sticky header. Uses the browser's own
+   smooth scroll for clicked links only (instant when reduced motion is on);
+   wheel/trackpad scrolling is never intercepted. */
+function scrollToSection(selector) {
+  const t = qs(selector);
+  if (!t) return;
+  const top = t.getBoundingClientRect().top + window.scrollY - 68;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+}
 
 /* ---------- router ---------- */
 function parseHash() {
@@ -65,10 +70,7 @@ function landingHeader(sessionUser) {
     el('div', { class: 'container lb-header-in' },
       brandRow(),
       el('nav', { class: 'lb-nav', 'aria-label': 'Landing sections' },
-        lbNavLink('Features', 'lb-features'),
-        lbNavLink('How it works', 'lb-how'),
-        lbNavLink('Fleet & fares', 'lb-fleet'),
-        lbNavLink('For riders', 'lb-riders')),
+        ...NAV.map(([l, id]) => lbNavLink(l, id))),
       el('div', { class: 'row', style: 'gap:8px' },
         el('button', { class: 'btn btn--ghost btn--sm', onclick: () => go('login') }, 'Sign in'),
         sessionUser
@@ -79,15 +81,11 @@ function landingHeader(sessionUser) {
   return header;
 }
 
+const NAV = [['Product', 'lb-features'], ['Journey', 'lb-journey'], ['Fleet & fares', 'lb-fleet'], ['Drive', 'lb-riders']];
+
 function lbNavLink(label, sectionId) {
   const b = el('button', { class: 'lb-navlink', type: 'button', 'data-section': sectionId }, label);
-  b.addEventListener('click', () => {
-    const t = qs('#' + sectionId);
-    if (!t) return;
-    const top = t.getBoundingClientRect().top + window.scrollY - 68;
-    if (smoothScroll) smoothScroll.scrollTo(top);
-    else t.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  b.addEventListener('click', () => scrollToSection('#' + sectionId));
   return b;
 }
 
@@ -95,10 +93,7 @@ function lbNavLink(label, sectionId) {
    Touch-first rows, closes on selection / Escape / outside click / resize. */
 function mobileMenu() {
   const panel = el('div', { class: 'lb-mobile-menu', id: 'lb-mobile-menu' },
-    lbNavLink('Features', 'lb-features'),
-    lbNavLink('How it works', 'lb-how'),
-    lbNavLink('Fleet & fares', 'lb-fleet'),
-    lbNavLink('For riders', 'lb-riders'));
+    ...NAV.map(([l, id]) => lbNavLink(l, id)));
   const btn = el('button', {
     class: 'lb-menu-btn', type: 'button',
     'aria-expanded': 'false', 'aria-controls': 'lb-mobile-menu',
@@ -156,7 +151,7 @@ function initScrollSpy(page) {
 }
 
 function authShell(title, sub, body, footLinks = []) {
-  const page = el('div', { class: 'lb-auth-page lb-boot' },
+  const page = el('main', { class: 'lb-auth-page lb-boot' },
     el('div', { class: 'lb-auth-card' },
       el('a', { class: 'lb-brand lb-brand--sm', href: '#/', style: 'align-self:flex-start' },
         el('span', { class: 'lb-brand-mark' }, logoSVG()),
@@ -231,61 +226,278 @@ function checkOtp(email, code) {
   return rec.code === String(code);
 }
 
+/* ==========================================================
+   Landing — art direction notes
+   Midnight hero with a fanned ride-class deck · editorial product
+   section built from real interface previews · pinned horizontal
+   journey · photo-led fleet rail · individually composed offers ·
+   rider recruitment band. Every number shown comes from the same
+   fare engine and data the apps use (js/data.js).
+   ========================================================== */
+
+/* Sample trip used for every quoted fare on the landing page */
+const SAMPLE_KM = 6;
+const SAMPLE_MIN = estimateDurationMin(SAMPLE_KM);
+const fareFrom = (id) => estimateFare(id, SAMPLE_KM, SAMPLE_MIN).total;
+
+/* Studio-lit campaign photography — one lighting world for the fleet.
+   `pos` is the crop focus (the front of each vehicle). */
+const RIDE_ART = {
+  moto: { src: 'assets/promos/campaign-scooter.webp', pos: '62% 58%', note: 'Fastest in traffic' },
+  car: { src: 'assets/promos/campaign-sedan.webp', pos: '60% 60%', note: 'Most booked' },
+  premium: { src: 'assets/illustrations/hero.png', pos: '64% 58%', note: 'Top-rated drivers' },
+  xl: { src: 'assets/promos/campaign-van.webp', pos: '58% 60%', note: 'Room for the barkada' },
+};
+
+const reduceMotion = () => prefersReducedMotion();
+
 /* ---------- fan deck card (hero) ----------
-   One art-directed ride-class card. Position (`pos`) drives the fan
-   transform from CSS; content layers (chips / stats / cta / side rail)
-   stack above the studio image like the reference travel-card deck. */
+   Photograph first: one quiet caption (class + starting fare) and
+   nothing else on the image. Position (`pos`) drives the fan geometry. */
 function fanCard(o) {
-  const sideLeft = o.pos === 'ol' || o.pos === 'il';
-  const side = el('div', { class: 'fan-side fan-side--' + (sideLeft ? 'left' : 'right'), 'aria-hidden': 'true' },
-    el('span', { class: 'fan-side-label' }, o.side));
-  const tag = o.tag ? el('span', { class: 'fan-tag' }, o.tag) : null;
-
-  const kids = [
-    el('img', {
-      class: 'fan-img', src: o.img, alt: o.alt || '',
-      loading: o.pos === 'c' ? 'eager' : 'lazy', decoding: 'async',
-      onerror: (e) => { const card = e.target.closest('.fan-card'); if (card) card.classList.add('fan-card--artless'); e.target.remove(); },
-    }),
-    el('div', { class: 'fan-shade', 'aria-hidden': 'true' }),
-    side,
-    tag,
-  ];
-
-  if (o.chips) {
-    kids.push(el('div', { class: 'fan-chips', 'aria-hidden': 'true' },
-      ...o.chips.map(([ic, k, v]) => el('span', { class: 'fan-chip' },
-        el('i', { 'data-lucide': ic, 'aria-hidden': 'true' }),
-        el('span', { class: 'fan-chip-txt' },
-          el('small', {}, k),
-          el('strong', {}, v))))));
-  }
-
-  if (o.stats || o.cta) {
-    const foot = el('div', { class: 'fan-foot' });
-    if (o.stats) foot.appendChild(el('div', { class: 'fan-stats', 'aria-hidden': 'true' },
-      ...o.stats.map(([n, l]) => el('span', { class: 'fan-stat' },
-        el('strong', { class: 't-num' }, n),
-        el('small', {}, l)))));
-    if (o.cta) {
-      const btn = el('button', { class: 'fan-cta', type: 'button' }, o.cta[0], el('i', { 'data-lucide': 'arrow-right', 'aria-hidden': 'true' }));
-      btn.addEventListener('click', o.cta[1]);
-      foot.appendChild(btn);
-    }
-    kids.push(foot);
-  }
-
-  const card = el('article', { class: `fan-card fan-card--${o.pos}` }, ...kids);
-  if (o.tilt) card.setAttribute('data-tilt', '');
-  return el('div', { class: `lb-fan-item lb-fan-item--${o.pos}` }, card);
+  return el('div', { class: `lb-fan-item lb-fan-item--${o.pos}` },
+    el('figure', { class: 'fan-card' },
+      el('img', {
+        class: 'fan-img', src: o.img, alt: o.alt,
+        style: `object-position:${o.focus}`,
+        loading: o.pos === 'c' ? 'eager' : 'lazy', decoding: 'async',
+        fetchpriority: o.pos === 'c' ? 'high' : null,
+        onerror: (e) => { e.target.closest('.fan-card')?.classList.add('fan-card--artless'); e.target.remove(); },
+      }),
+      el('figcaption', { class: 'fan-cap' },
+        el('span', { class: 'fan-cap-name' }, o.name),
+        el('span', { class: 'fan-cap-meta t-num' }, o.meta))));
 }
 
-/* ==========================================================
-   Landing view — Electric Lime system.
-   Midnight hero with a fanned ride-class deck, drifting route
-   pattern, tinted feature carousel, premium how-it-works,
-   vehicle fare cards, promo rail, dark CTA band + footer.
-   ========================================================== */
+/* ---------- stylised map (shared by every map preview) ----------
+   Static SVG streets + a route; `mover` animates a marker along the
+   route with SMIL (pauses on its own when the tab is hidden). With
+   reduced motion the marker simply sits at its end point. */
+let mapSeq = 0;
+function mapArt({ theme = 'light', size = 'tall', route, mover = null, travelled = null, pickup = null, dest = null }) {
+  const id = `lbmap${++mapSeq}`;
+  const [w, hgt] = size === 'wide' ? [560, 380] : [280, 360];
+  const c = theme === 'dark'
+    ? { bg: '#141F1A', block: '#18251F', park: '#1B2D21', major: '#24342C', minor: '#1E2C25', route: '#B6F500', ghost: 'rgba(182,245,0,0.22)' }
+    : { bg: '#E7ECE1', block: '#DEE4D6', park: '#D2E5BD', major: '#FFFFFF', minor: '#F4F6EF', route: '#101A17', ghost: 'rgba(16,26,23,0.18)' };
+  const grid = size === 'wide'
+    ? { major: 'M0 60H560M0 170H560M0 290H560M70 0V380M210 0V380M350 0V380M490 0V380', minor: 'M0 115H560M0 230H560M140 0V380M280 0V380M420 0V380', avenue: 'M-20 340C140 300 260 120 580 96', parks: [[362, 72, 116, 86], [150, 242, 120, 40]] }
+    : { major: 'M0 70H280M0 180H280M0 290H280M50 0V360M150 0V360M235 0V360', minor: 'M0 125H280M0 235H280M100 0V360M195 0V360', avenue: 'M-10 250L290 40', parks: [[160, 80, 66, 90], [60, 300, 80, 50]] };
+  const parks = grid.parks.map(([x, y, pw, ph]) => `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" rx="6" fill="${c.park}"/>`).join('');
+  let motion = '';
+  if (mover) {
+    const [from, to, dur] = mover;
+    const kp = reduceMotion() ? `${to};${to}` : `${from};${to}`;
+    const rep = reduceMotion() ? 'fill="freeze"' : 'repeatCount="indefinite"';
+    motion = `<g><circle r="11" fill="${theme === 'dark' ? '#B6F500' : '#101A17'}" stroke="${theme === 'dark' ? '#101A17' : '#FFFFFF'}" stroke-width="3"/><circle r="3.5" fill="${theme === 'dark' ? '#101A17' : '#B6F500'}"/><animateMotion dur="${dur}s" ${rep} calcMode="linear" keyPoints="${kp}" keyTimes="0;1"><mpath href="#${id}-r"/></animateMotion></g>`;
+  }
+  const done = travelled
+    ? `<path d="${route}" pathLength="100" fill="none" stroke="${c.route}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${reduceMotion() ? travelled[1] : travelled[0]} 100">${reduceMotion() ? '' : `<animate attributeName="stroke-dasharray" values="${travelled[0]} 100;${travelled[1]} 100" dur="${mover ? mover[2] : 8}s" repeatCount="indefinite"/>`}</path>`
+    : `<path d="${route}" fill="none" stroke="${c.route}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const pin = (p, kind) => (!p ? '' : kind === 'pickup'
+    ? `<circle cx="${p[0]}" cy="${p[1]}" r="16" fill="${c.route}" opacity="0.14"/><circle cx="${p[0]}" cy="${p[1]}" r="7" fill="${theme === 'dark' ? '#F4F6EF' : '#FFFFFF'}" stroke="${c.route}" stroke-width="4"/>`
+    : `<rect x="${p[0] - 8}" y="${p[1] - 8}" width="16" height="16" rx="3" fill="${c.route}"/><rect x="${p[0] - 3}" y="${p[1] - 3}" width="6" height="6" rx="1" fill="${theme === 'dark' ? '#101A17' : '#B6F500'}"/>`);
+  const svg = `<svg viewBox="0 0 ${w} ${hgt}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <rect width="${w}" height="${hgt}" fill="${c.bg}"/>${parks}
+    <path d="${grid.minor}" stroke="${c.minor}" stroke-width="6" fill="none"/>
+    <path d="${grid.major}" stroke="${c.major}" stroke-width="11" fill="none"/>
+    <path d="${grid.avenue}" stroke="${c.major}" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <path id="${id}-r" d="${route}" fill="none" stroke="${c.ghost}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"${travelled ? '' : ' opacity="0"'}/>
+    ${done}${pin(pickup, 'pickup')}${pin(dest, 'dest')}${motion}</svg>`;
+  const wrap = el('div', { class: 'lb-map' });
+  wrap.innerHTML = svg; // static markup only — no user data is interpolated
+  return wrap;
+}
+
+/* Small reusable bits for the interface previews */
+const uiAvatar = (src, cls = '') => el('img', { class: 'lb-ui-avatar ' + cls, src, alt: '', loading: 'lazy', decoding: 'async' });
+const uiIcon = (name) => el('i', { 'data-lucide': name, 'aria-hidden': 'true' });
+const featLabel = (num, text) => el('p', { class: 'lb-feat-label' }, el('span', { class: 't-num' }, num), text);
+
+/* ---------- product previews ---------- */
+function trackPreview() {
+  return el('div', { class: 'lb-track-stage', 'data-reveal': 'media' },
+    mapArt({
+      theme: 'dark', size: 'wide',
+      route: 'M490 330V230H350V170H210V115H140',
+      mover: [0, 0.94, 11], pickup: [140, 115],
+    }),
+    el('span', { class: 'lb-live', 'aria-hidden': 'true' }, el('span', { class: 'lb-live-dot' }), 'Live'),
+    el('div', { class: 'lb-eta-sheet' },
+      uiAvatar('assets/avatars/d3.png'),
+      el('div', { class: 'lb-eta-txt' },
+        el('strong', {}, 'Jun is 3 min away'),
+        el('span', {}, 'White Toyota Vios · ★ 4.8')),
+      el('span', { class: 'lb-ui-plate t-num' }, 'UVX 3310')));
+}
+
+function farePreview() {
+  const fare = applyPromo(estimateFare('car', SAMPLE_KM, SAMPLE_MIN), getPromo('LAKBAY50'));
+  const row = (k, v, cls = '') => el('div', { class: 'lb-rc-row ' + cls }, el('span', {}, k), el('span', { class: 't-num' }, v));
+  const receipt = el('div', { class: 'lb-receipt' },
+    el('div', { class: 'lb-rc-head' },
+      el('div', {}, el('strong', {}, 'Lakbay Car'), el('span', {}, `Ortigas Center → BGC · ${fare.km} km`)),
+      el('span', { class: 'lb-rc-eta t-num' }, `${fare.mins} min`)),
+    row('Base fare', `₱${fare.base}`),
+    row(`Distance · ${fare.km} km`, `₱${fare.distance}`),
+    row(`Time · ${fare.mins} min`, `₱${fare.duration}`),
+    row('Platform fee', `₱${fare.platformFee}`),
+    row(`Promo · ${fare.promoCode}`, `−₱${fare.discount}`, 'lb-rc-promo'),
+    row('You pay', `₱${fare.total}`, 'lb-rc-total'),
+    el('span', { class: 'lb-ui-btn lb-ui-btn--dark' }, 'Confirm Lakbay Car'));
+  const wallet = el('div', { class: 'lb-wallet' },
+    el('strong', { class: 'lb-wallet-h' }, 'Pay with'),
+    ...PAYMENT_METHODS.map((m) => el('div', { class: 'lb-wallet-row' + (m.id === 'gcash' ? ' is-on' : '') },
+      el('span', { class: 'lb-wallet-logo', style: `background:${m.logoBg};color:${m.logoFg}` }, m.logo.slice(0, 1)),
+      el('span', { class: 'lb-wallet-txt' }, el('strong', {}, m.name), el('small', {}, m.sub)),
+      el('span', { class: 'lb-wallet-radio', 'aria-hidden': 'true' }))));
+  return el('div', { class: 'lb-fare-stage', 'data-reveal': 'media' }, receipt, wallet);
+}
+
+function verifyPreview() {
+  const checks = ['Driver’s license', 'OR / CR vehicle papers', 'NBI clearance', 'Face match'];
+  return el('div', { class: 'lb-verify-stage', 'data-reveal': 'media' },
+    el('img', { class: 'lb-verify-photo', src: 'assets/promos/campaign-van.webp', alt: 'Grey Lakbay XL van in a dark studio', loading: 'lazy', decoding: 'async' }),
+    el('div', { class: 'lb-profile' },
+      el('div', { class: 'lb-profile-top' },
+        uiAvatar('assets/avatars/d2.png', 'lb-ui-avatar--lg'),
+        el('div', {},
+          el('strong', {}, 'Aina Villanueva'),
+          el('span', { class: 't-num' }, '★ 4.92 · 6,208 trips')),
+        el('span', { class: 'lb-verified' }, uiIcon('badge-check'), 'Verified')),
+      el('ul', { class: 'lb-checks' },
+        ...checks.map((c) => el('li', {}, uiIcon('check'), c))),
+      el('div', { class: 'lb-profile-veh' },
+        el('span', {}, 'Toyota Innova · Pearl white'),
+        el('span', { class: 'lb-ui-plate t-num' }, 'KAA 7732'))));
+}
+
+function chatPreview() {
+  const msg = (who, text, t) => el('div', { class: `lb-msg lb-msg--${who}` }, el('p', {}, text), el('small', { class: 't-num' }, t));
+  return el('div', { class: 'lb-chat', 'data-reveal': 'media' },
+    el('div', { class: 'lb-chat-head' },
+      uiAvatar('assets/avatars/d3.png'),
+      el('div', {}, el('strong', {}, 'Jun · Toyota Vios'), el('span', {}, 'Arriving in 2 min'))),
+    el('div', { class: 'lb-chat-thread' },
+      msg('them', 'On my way po. Nasa Meralco Ave na ako.', '8:41'),
+      msg('me', 'Sa gate po ako, near the guard house.', '8:42'),
+      msg('them', 'Copy po, I see you. Black Vios.', '8:43')),
+    el('div', { class: 'lb-chat-quick', 'aria-hidden': 'true' },
+      el('span', {}, 'I’m at the pickup point.'),
+      el('span', {}, 'Please wait a moment.')));
+}
+
+function earningsPreview() {
+  const days = [['M', 62], ['T', 48], ['W', 74], ['T', 55], ['F', 88], ['S', 100], ['S', 70]];
+  return el('div', { class: 'lb-earn', 'data-reveal': 'media' },
+    el('div', { class: 'lb-earn-head' },
+      el('span', {}, 'This week'),
+      el('span', { class: 'lb-earn-up t-num' }, '+12%')),
+    el('strong', { class: 'lb-earn-total t-num' }, '₱8,420'),
+    el('div', { class: 'lb-earn-bars', 'aria-hidden': 'true' },
+      ...days.map(([d, v], i) => el('div', { class: 'lb-earn-col' + (i === 5 ? ' is-today' : '') },
+        el('span', { style: `--v:${v};--i:${i}` }), el('small', {}, d)))),
+    el('div', { class: 'lb-earn-foot t-num' },
+      el('span', {}, el('strong', {}, '₱1,260'), ' today'),
+      el('span', {}, el('strong', {}, '9'), ' trips'),
+      el('span', {}, el('strong', {}, '6.5 h'), ' online')));
+}
+
+/* ---------- journey phone screens ---------- */
+function phone(...kids) {
+  return el('div', { class: 'lb-phone', 'aria-hidden': 'true' }, el('div', { class: 'lb-phone-screen' }, ...kids));
+}
+const sheet = (...kids) => el('div', { class: 'lb-ui-sheet' }, ...kids);
+
+function journeyScreens() {
+  const carFare = fareFrom('car');
+  return [
+    phone(
+      el('div', { class: 'lb-ui-top' }, el('strong', { class: 'lb-ui-h' }, 'Where to?')),
+      el('div', { class: 'lb-ui-fields' },
+        el('div', { class: 'lb-ui-field' }, el('span', { class: 'lb-ui-dot' }), el('span', {}, el('small', {}, 'Pickup'), 'Ortigas Center')),
+        el('div', { class: 'lb-ui-field is-focus' }, el('span', { class: 'lb-ui-dot lb-ui-dot--sq' }), el('span', {}, el('small', {}, 'Drop-off'), 'Bonifacio High Street'))),
+      el('ul', { class: 'lb-ui-list' },
+        ...[['house', 'Home', 'Kapitolyo, Pasig'], ['briefcase', 'Work', 'Ayala Ave, Makati'], ['shopping-bag', 'SM Megamall', 'EDSA, Mandaluyong'], ['plane', 'NAIA Terminal 3', 'Andrews Ave, Pasay']]
+          .map(([ic, n, a]) => el('li', {}, uiIcon(ic), el('span', {}, el('strong', {}, n), el('small', {}, a))))),
+      el('div', { class: 'lb-ui-pad' }, el('span', { class: 'lb-ui-btn lb-ui-btn--dark' }, 'Choose a ride'))),
+    phone(
+      el('div', { class: 'lb-ui-radar' },
+        el('span', { class: 'lb-radar-ring' }), el('span', { class: 'lb-radar-ring' }), el('span', { class: 'lb-radar-ring' }),
+        el('span', { class: 'lb-radar-core' }, uiIcon('car-front'))),
+      sheet(
+        el('small', { class: 'lb-ui-kicker' }, 'Rider found'),
+        el('div', { class: 'lb-ui-driver' },
+          uiAvatar('assets/avatars/d3.png'),
+          el('span', {}, el('strong', {}, 'Jun Soriano'), el('small', { class: 't-num' }, '★ 4.8 · 5,102 trips'))),
+        el('div', { class: 'lb-ui-veh' }, el('span', {}, 'White Toyota Vios'), el('span', { class: 'lb-ui-plate t-num' }, 'UVX 3310')),
+        el('div', { class: 'lb-ui-fare t-num' }, el('span', {}, 'Lakbay Car'), el('strong', {}, `₱${carFare}`)))),
+    phone(
+      mapArt({ route: 'M235 360V290H150V235H50', mover: [0, 0.82, 8], pickup: [50, 235] }),
+      sheet(
+        el('div', { class: 'lb-ui-row' },
+          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'Arriving in 3 min'), el('small', {}, 'Meet at the Meralco Ave gate')),
+          uiAvatar('assets/avatars/d3.png')),
+        el('div', { class: 'lb-ui-actions' },
+          el('span', { class: 'lb-ui-chip' }, uiIcon('message-circle'), 'Chat'),
+          el('span', { class: 'lb-ui-chip' }, uiIcon('phone'), 'Call'),
+          el('span', { class: 'lb-ui-plate t-num' }, 'UVX 3310')))),
+    phone(
+      mapArt({ route: 'M50 235V180H150V70H235', mover: [0.08, 0.86, 10], travelled: [8, 86], pickup: [50, 235], dest: [235, 70] }),
+      sheet(
+        el('div', { class: 'lb-ui-row' },
+          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'On the way to BGC'), el('small', { class: 't-num' }, '14 min · 4.2 km left')),
+          el('span', { class: 'lb-ui-chip' }, uiIcon('share-2'), 'Share')),
+        el('div', { class: 'lb-ui-progress' }, el('span', {})))),
+    phone(
+      el('div', { class: 'lb-ui-done' },
+        el('span', { class: 'lb-ui-done-mark' }, uiIcon('check')),
+        el('strong', { class: 'lb-ui-h' }, 'You’ve arrived'),
+        el('small', {}, 'Bonifacio High Street · 8:59 AM')),
+      sheet(
+        el('div', { class: 'lb-ui-fare t-num' }, el('span', {}, 'Paid with GCash'), el('strong', {}, `₱${carFare}`)),
+        el('div', { class: 'lb-ui-stars' }, ...[1, 2, 3, 4, 5].map(() => uiIcon('star'))),
+        el('span', { class: 'lb-ui-btn lb-ui-btn--lime' }, 'Rate Jun & finish'))),
+  ];
+}
+
+const JOURNEY = [
+  ['Book', 'Tell us where.', 'Search a place, tap a saved spot, or drop a pin. Pickup starts from where you are.'],
+  ['Match', 'Meet your rider.', 'Nearby riders get your request. You see who accepted — name, rating, vehicle and plate.'],
+  ['Pickup', 'Watch them arrive.', 'Follow the approach live and chat if the gate or landmark needs explaining.'],
+  ['Ride', 'Follow the road.', 'See the route and time remaining, and share the trip with someone at home in one tap.'],
+  ['Arrive', 'Pay, rate, done.', 'The fare you saw is the fare you pay — cash or wallet. Then rate your rider.'],
+];
+
+/* ---------- offers — each one composed as its own advertisement ---------- */
+function offerAd(code, layout, extra = {}) {
+  const p = PROMOS.find((x) => x.code === code);
+  if (!p) return null;
+  const sp = p.label.indexOf(' ');
+  const big = p.label.slice(0, sp);
+  const tail = p.label.slice(sp + 1);
+  const btnLabel = el('span', {}, 'Copy code');
+  const btn = el('button', { class: 'lb-ad-copy', type: 'button', 'aria-label': `Copy promo code ${p.code}` }, uiIcon('copy'), btnLabel);
+  btn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(p.code);
+      btnLabel.textContent = 'Copied';
+      btn.classList.add('is-copied');
+      Toast.success('Code copied', `Add ${p.code} before you confirm your ride.`);
+      setTimeout(() => { btnLabel.textContent = 'Copy code'; btn.classList.remove('is-copied'); }, 1800);
+    } catch (e) {
+      Toast.info(`Promo code: ${p.code}`, 'Enter it before you confirm your ride.');
+    }
+  });
+  return el('article', { class: `lb-ad lb-ad--${layout}`, 'data-reveal': '', style: extra.delay ? `--reveal-delay:${extra.delay}ms` : null },
+    extra.img ? el('img', { class: 'lb-ad-img', src: extra.img, alt: '', loading: 'lazy', decoding: 'async', 'aria-hidden': 'true' }) : null,
+    el('div', { class: 'lb-ad-body' },
+      el('span', { class: 'lb-ad-kicker' }, extra.kicker),
+      el('h3', { class: 'lb-ad-head' }, el('span', { class: 'lb-ad-num' }, big), el('span', { class: 'lb-ad-tail' }, tail)),
+      el('p', { class: 'lb-ad-note' }, p.note),
+      el('div', { class: 'lb-ad-code' }, el('span', { class: 'lb-ad-voucher t-num' }, p.code), btn)));
+}
+
 function renderLanding() {
   clear(root);
   landingOff.forEach((f) => f());
@@ -294,186 +506,168 @@ function renderLanding() {
   seedDemoAccounts().then(() => { /* refresh header CTA once accounts exist */ });
   const session = Session.get();
   const sessionUser = session ? Users.byId(session.userId) : null;
+  const book = () => go('login', { next: 'passenger' });
+  const drive = () => go('register', { next: 'rider' });
 
   const page = el('div', { class: 'lb-landing lb-boot' });
   page.appendChild(landingHeader(sessionUser));
+  // All sections between the header and footer sit in <main> (a landmark
+  // screen readers use to skip straight to the content).
+  const main = el('main', { class: 'lb-main', id: 'lb-main' });
+  page.appendChild(main);
 
-  /* hero — midnight band, drifting route pattern, fanned ride-class deck */
-  const hero = el('section', { class: 'lb-hero' },
-    el('div', { class: 'lb-hero-bg', 'data-parallax': '0.16', 'aria-hidden': 'true' }),
-    el('div', { class: 'lb-hero-glow', 'data-parallax': '-0.08', 'aria-hidden': 'true' }),
+  /* ---------- hero ---------- */
+  main.appendChild(el('section', { class: 'lb-hero', 'aria-labelledby': 'lb-hero-title' },
+    el('div', { class: 'lb-hero-bg', 'aria-hidden': 'true' }),
     el('div', { class: 'container lb-hero-grid' },
       el('div', { class: 'lb-hero-copy' },
         el('span', { class: 'lb-eyebrow lb-eyebrow--dark' }, 'Ride-hailing for the Philippines'),
-        el('h1', { class: 'lb-hero-title' }, 'Sakay na. ', el('em', {}, 'Lakbay'), ' takes you there.'),
+        el('h1', { class: 'lb-hero-title', id: 'lb-hero-title' }, 'Sakay na. ', el('em', {}, 'Lakbay'), ' takes you there.'),
         el('p', { class: 'lb-hero-sub' },
-          'Book a car or moto, follow your rider live on the map, pay with cash or a wallet, and rate every trip. Two complete apps — passengers and drivers.'),
+          'Book a car or moto in seconds, watch your rider arrive on the map, and pay your way — cash, GCash or Maya.'),
         el('div', { class: 'lb-hero-cta' },
-          el('button', { class: 'btn btn--primary btn--lg', onclick: () => go('login', { next: 'passenger' }) },
-            el('i', { 'data-lucide': 'car-front' }), 'Book a ride'),
-          el('button', { class: 'btn btn--outline-light btn--lg', onclick: () => go('register', { next: 'rider' }) },
-            el('i', { 'data-lucide': 'car-taxi-front' }), 'Drive with Lakbay'),
+          el('button', { class: 'btn btn--primary btn--lg lb-cta-go', onclick: book }, 'Book a ride', uiIcon('arrow-right')),
+          el('button', { class: 'btn btn--outline-light btn--lg', onclick: drive }, 'Drive with Lakbay'),
           createInstallButton({ variant: 'ghost', size: 'lg' })),
-        el('div', { class: 'lb-hero-trust' },
-          el('span', {}, el('i', { 'data-lucide': 'shield-check' }), 'Verified riders'),
-          el('span', {}, el('i', { 'data-lucide': 'map' }), 'OpenStreetMap maps'),
-          el('span', {}, el('i', { 'data-lucide': 'database' }), 'Data stays on this device'))),
+        el('p', { class: 'lb-hero-note' }, 'Fares shown before you book', el('span', { 'aria-hidden': 'true' }, '·'), 'Every rider verified', el('span', { 'aria-hidden': 'true' }, '·'), 'Cash, GCash & Maya')),
       el('div', { class: 'lb-hero-art' },
-        el('div', { class: 'lb-fan-frame', 'data-parallax': '-0.05' },
+        el('div', { class: 'lb-fan-frame' },
           el('div', { class: 'lb-fan', role: 'group', 'aria-label': 'Lakbay ride classes' },
-            fanCard({
-              pos: 'ol', img: 'assets/promos/campaign-sedan.webp', side: 'Car', tag: 'Most popular',
-              alt: 'White Lakbay sedan in a dark studio',
-            }),
-            fanCard({
-              pos: 'il', img: 'assets/promos/campaign-scooter.webp', side: 'Moto', tag: 'Fastest',
-              alt: 'Green Lakbay moto in a dark studio',
-              chips: [
-                ['map-pin', 'Pickup', 'Ortigas Center'],
-                ['clock', 'Wait', '2–5 min'],
-                ['zap', 'Best for', 'Rush hour'],
-              ],
-              stats: [['4.8', 'Driver rating'], ['94%', 'Return riders']],
-              cta: ['View fares', () => { const t = qs('#lb-fleet'); if (t) smoothScroll.scrollTo(t.getBoundingClientRect().top + window.scrollY - 68); }],
-            }),
-            fanCard({
-              pos: 'c', img: 'assets/illustrations/hero.png', side: 'Premium', tag: 'Editor’s choice',
-              alt: 'Lime Lakbay premium car in a dark studio',
-              chips: [
-                ['map-pin', 'Route', 'Makati → BGC'],
-                ['clock', 'Pickup', 'About 4 min'],
-                ['user-round', 'Seats', '4 seats'],
-                ['briefcase', 'Luggage', '3 bags'],
-              ],
-              stats: [['4.9', 'Driver rating'], ['96%', 'Return riders'], ['₱153', '6 km fare']],
-              cta: ['Book a ride', () => go('login', { next: 'passenger' })],
-              tilt: true,
-            }),
-            fanCard({
-              pos: 'ir', img: 'assets/promos/campaign-van.webp', side: 'XL', tag: 'Roomiest',
-              alt: 'Silver Lakbay XL van in a dark studio',
-            }),
-            fanCard({
-              pos: 'or', img: 'assets/promos/campaign-coins.webp', side: 'Rewards', tag: 'Payday treats',
-              alt: 'Stack of lime reward coins',
-            }))))));
-  page.appendChild(hero);
+            fanCard({ pos: 'ol', img: RIDE_ART.car.src, focus: '64% 60%', name: 'Car', meta: `from ₱${fareFrom('car')}`, alt: 'Silver Lakbay sedan in a dark green studio' }),
+            fanCard({ pos: 'il', img: RIDE_ART.moto.src, focus: '64% 55%', name: 'Moto', meta: `from ₱${fareFrom('moto')}`, alt: 'Green Lakbay motorcycle in a dark studio' }),
+            fanCard({ pos: 'c', img: RIDE_ART.premium.src, focus: '68% 60%', name: 'Premium', meta: `from ₱${fareFrom('premium')}`, alt: 'Lime Lakbay premium coupe in a dark studio' }),
+            fanCard({ pos: 'ir', img: RIDE_ART.xl.src, focus: '66% 60%', name: 'XL', meta: `from ₱${fareFrom('xl')}`, alt: 'Grey Lakbay XL van in a dark studio' }),
+            fanCard({ pos: 'or', img: 'assets/promos/campaign-helmet.webp', focus: '52% 50%', name: 'Drive', meta: 'Earn on your hours', alt: 'Green Lakbay rider helmet with lime stripes' })))))));
 
-  /* features — buttery carousel of tinted capability cards.
-     Each card gets its own wash from the brand palette so the rail
-     reads like a curated set, not a stack of clones. */
-  const feats = [
-    ['route', 'lime', 'Live trip tracking', 'Follow your rider approach on an interactive map with a live ETA, from acceptance to drop-off.'],
-    ['wallet', 'forest', 'Cash, GCash & Maya', 'Pay how you like with wallets that auto-charge, and get a receipt for every trip.'],
-    ['shield-check', 'midnight', 'Verified riders', 'License, vehicle papers, and photos reviewed before a driver can take a single booking.'],
-    ['receipt-text', 'amber', 'Fares upfront', 'Base, distance, and time charges itemized before you confirm. Promos apply in one tap.'],
-    ['message-circle', 'coral', 'Chat & quick replies', 'Coordinate pickup details with one-tap messages and a full chat thread per ride.'],
-    ['chart-column', 'sand', 'Driver earnings', 'A rider dashboard with availability, demand hotspots, daily totals, and cash-outs.'],
-  ];
-  const featsSec = el('section', { class: 'lb-section', id: 'lb-features' },
+  /* ---------- product — real interface previews, varied compositions ---------- */
+  main.appendChild(el('section', { class: 'lb-section lb-product', id: 'lb-features' },
     el('div', { class: 'container' },
-      el('div', { class: 'lb-sec-head', 'data-reveal': '' },
-        el('span', { class: 'lb-eyebrow' }, 'Why Lakbay'),
-        el('h2', { class: 'lb-h2' }, 'Everything a ride-hailing app needs'),
-        el('p', { class: 'lb-lead' }, 'Both experiences are fully interactive — book, track, pay, and rate a complete journey.')),
-      (() => {
-        const carRoot = el('div', { class: 'lb-car', 'data-spv': '3' },
-          el('div', { class: 'car-viewport' },
-            el('div', { class: 'car-track' },
-              feats.map(([icon, tone, title, body]) => el('article', { class: 'lb-car-slide' },
-                el('article', { class: `lb-feat-card lb-feat--${tone}` },
-                  el('span', { class: 'lb-feat-tile', 'aria-hidden': 'true' },
-                    el('i', { 'data-lucide': icon })),
-                  el('h3', {}, title),
-                  el('p', {}, body))))),
-          el('div', { class: 'lb-car-foot' },
-            el('div', { class: 'car-dots', role: 'tablist', 'aria-label': 'Feature slides' }),
-            el('div', { class: 'lb-car-btns' },
-              el('button', { class: 'car-prev icon-btn icon-btn--bordered', type: 'button', 'aria-label': 'Previous features' }, el('i', { 'data-lucide': 'arrow-left' })),
-              el('button', { class: 'car-next icon-btn icon-btn--bordered', type: 'button', 'aria-label': 'Next features' }, el('i', { 'data-lucide': 'arrow-right' }))))));
-        setTimeout(() => {
-          createCarousel(carRoot, { slidesPerView: 3, autoplayMs: 4600, label: 'Lakbay features' });
-          Icons.refresh(carRoot);
-        }, 0);
-        return carRoot;
-      })()));
-  page.appendChild(featsSec);
+      el('div', { class: 'lb-head-split', 'data-reveal': '' },
+        el('div', {},
+          el('span', { class: 'lb-eyebrow' }, 'The product'),
+          el('h2', { class: 'lb-h2' }, 'Every part of the ride, out in the open.')),
+        el('p', { class: 'lb-lead' }, 'Lakbay shows you what is happening at each step — who is coming, what it costs, and when you will get there. Two complete apps, one for passengers and one for riders.')),
 
-  /* how it works — paired app columns with a numbered timeline */
-  const how = el('section', { class: 'lb-section lb-section--alt', id: 'lb-how' },
-    el('div', { class: 'container' },
-      el('div', { class: 'lb-sec-head', 'data-reveal': '' },
-        el('span', { class: 'lb-eyebrow' }, 'How it works'),
-        el('h2', { class: 'lb-h2' }, 'Two apps, one loop'),
-        el('p', { class: 'lb-lead' }, 'Book in the passenger app, accept in the rider app — bookings sync live between open tabs.')),
-      el('div', { class: 'lb-how-grid' },
-        lbHowCol({
-          tone: 'light', icon: 'user-round', chip: 'Passenger app', title: 'Ride in three moves',
-          cta: ['Book a ride', () => go('login', { next: 'passenger' })],
-          steps: [
-            ['01', 'map-pin', 'Set your route', 'Pick a saved place, search nearby spots, or drop a pin on the map.'],
-            ['02', 'car-front', 'Pick a ride', 'Compare moto, sedan, premium, and XL fares before you book.'],
-            ['03', 'star', 'Track & rate', 'Follow your driver live, chat, pay, and rate the trip.'],
-          ],
-        }),
-        lbHowCol({
-          tone: 'dark', icon: 'car-taxi-front', chip: 'Rider app', title: 'Earn in three moves', delay: 80,
-          cta: ['Become a rider', () => go('register', { next: 'rider' })],
-          steps: [
-            ['01', 'power', 'Go online', 'Toggle availability and see demand hotspots around you.'],
-            ['02', 'bell-ring', 'Accept requests', 'Review pickup, fare, and passenger rating — accept or decline.'],
-            ['03', 'banknote', 'Complete & earn', 'Navigate turn by turn, complete trips, and watch daily earnings grow.'],
-          ],
-        }))));
-  page.appendChild(how);
+      el('div', { class: 'lb-feature lb-feature--track' },
+        el('div', { class: 'lb-feat-copy', 'data-reveal': '' },
+          featLabel('01', 'Live tracking'),
+          el('h3', {}, 'See your rider coming, not just a dot on a map.'),
+          el('p', {}, 'From the moment a rider accepts, you get their name, plate and live position, with an ETA that updates as they move through traffic.')),
+        trackPreview()),
 
-  /* fleet — vehicle fare cards */
-  const fleet = el('section', { class: 'lb-section', id: 'lb-fleet' },
-    el('div', { class: 'container' },
-      el('div', { class: 'lb-sec-head', 'data-reveal': '' },
+      el('div', { class: 'lb-feature lb-feature--fare' },
+        el('div', { class: 'lb-feat-copy', 'data-reveal': '' },
+          featLabel('02', 'Upfront fares & payments'),
+          el('h3', {}, 'The fare is settled before the ride starts.'),
+          el('p', {}, 'Base, distance, time and fees are itemized up front. Promo codes apply in one tap, and you pay with cash, GCash or Maya.')),
+        farePreview()),
+
+      el('div', { class: 'lb-trust-row' },
+        el('div', { class: 'lb-trust-a' },
+          verifyPreview(),
+          el('div', { class: 'lb-feat-copy', 'data-reveal': '' },
+            featLabel('03', 'Verified riders'),
+            el('h3', {}, 'Every rider is checked before their first trip.'),
+            el('p', {}, 'License, vehicle papers and clearances are reviewed, so the name on your screen is the person at the wheel.'))),
+        el('div', { class: 'lb-trust-b' },
+          el('div', { class: 'lb-feat-copy', 'data-reveal': '' },
+            featLabel('04', 'In-ride chat'),
+            el('h3', {}, 'Sort out the pickup in a tap.'),
+            el('p', {}, 'A chat thread per trip, with quick replies in English and Taglish for the moments that matter.')),
+          chatPreview())))));
+
+  /* ---------- journey — pinned horizontal story (native swipe on mobile) ---------- */
+  const screens = journeyScreens();
+  main.appendChild(el('section', { class: 'lb-journey', id: 'lb-journey', 'aria-labelledby': 'lb-jr-title' },
+    el('div', { class: 'lb-jr-pin' },
+      el('div', { class: 'container lb-jr-head' },
+        el('div', {},
+          el('span', { class: 'lb-eyebrow lb-eyebrow--dark' }, 'The Lakbay journey'),
+          el('h2', { class: 'lb-h2', id: 'lb-jr-title' }, 'From tap to drop‑off in five moves.')),
+        el('ol', { class: 'lb-jr-steps', 'aria-label': 'Journey stages' },
+          ...JOURNEY.map(([name], i) => el('li', {},
+            el('button', { class: 'lb-jr-step', type: 'button', 'data-i': String(i) },
+              el('span', { class: 't-num' }, String(i + 1).padStart(2, '0')), name))))),
+      el('div', { class: 'container' }, el('div', { class: 'lb-jr-bar', 'aria-hidden': 'true' })),
+      el('div', { class: 'lb-jr-viewport', tabindex: '-1' },
+        el('div', { class: 'lb-jr-track' },
+          ...JOURNEY.map(([name, title, body], i) => el('article', { class: 'lb-jr-stage', 'aria-label': `Stage ${i + 1} of 5: ${name}` },
+            el('div', { class: 'lb-jr-copy' },
+              el('span', { class: 'lb-jr-num t-num', 'aria-hidden': 'true' }, String(i + 1).padStart(2, '0')),
+              el('p', { class: 'lb-jr-name' }, name),
+              el('h3', {}, title),
+              el('p', { class: 'lb-jr-body' }, body),
+              i === JOURNEY.length - 1
+                ? el('button', { class: 'btn btn--primary btn--lg lb-cta-go', onclick: book }, 'Book your first ride', uiIcon('arrow-right'))
+                : null),
+            screens[i])))))));
+
+  /* ---------- fleet — photo-led horizontal gallery ---------- */
+  const rail = el('div', { class: 'lb-fleet-rail', role: 'list', 'aria-label': 'Ride classes' },
+    ...RIDE_CATEGORIES.map((c, i) => {
+      const art = RIDE_ART[c.id] || { src: c.img, pos: '50% 50%', note: '' };
+      return el('article', { class: `lb-ride lb-ride--${c.id}${i % 2 === 1 ? ' lb-ride--wide' : ''}`, role: 'listitem' },
+        el('img', { src: art.src, alt: '', style: `object-position:${art.pos}`, loading: 'lazy', decoding: 'async', onerror: (e) => e.target.remove() }),
+        el('div', { class: 'lb-ride-top' },
+          el('span', {}, art.note),
+          el('span', { class: 't-num' }, c.capacity === 1 ? '1 seat' : `${c.capacity} seats`)),
+        el('div', { class: 'lb-ride-body' },
+          el('div', {},
+            el('h3', {}, c.name.replace('Lakbay ', '')),
+            el('p', { class: 'lb-ride-desc' }, c.desc)),
+          el('div', { class: 'lb-ride-fare' },
+            el('small', {}, 'from'),
+            el('strong', { class: 't-num' }, `₱${fareFrom(c.id)}`))),
+        el('button', { class: 'lb-ride-go', type: 'button', 'aria-label': `Book ${c.name}, from ₱${fareFrom(c.id)}`, onclick: book },
+          el('span', { class: 'lb-ride-arrow', 'aria-hidden': 'true' }, uiIcon('arrow-up-right'))));
+    }));
+  const prev = el('button', { class: 'icon-btn icon-btn--bordered lb-rail-btn', type: 'button', 'aria-label': 'Previous ride class' }, uiIcon('arrow-left'));
+  const next = el('button', { class: 'icon-btn icon-btn--bordered lb-rail-btn', type: 'button', 'aria-label': 'Next ride class' }, uiIcon('arrow-right'));
+  main.appendChild(el('section', { class: 'lb-section lb-fleet', id: 'lb-fleet' },
+    el('div', { class: 'container lb-head-split lb-head-split--rail', 'data-reveal': '' },
+      el('div', {},
         el('span', { class: 'lb-eyebrow' }, 'Fleet & fares'),
-        el('h2', { class: 'lb-h2' }, 'Four ways to ride'),
-        el('p', { class: 'lb-lead' }, 'Sample fares for a typical 6 km run. Every fare is itemized before booking.')),
-      el('div', { class: 'lb-fleet-grid' },
-        RIDE_CATEGORIES.map((c) => {
-          const fare = 45 + Math.round(c.perKm * 6);
-          return el('article', { class: 'lb-veh-card', 'data-reveal': '' },
-            el('div', { class: 'lb-veh-media' },
-              el('img', { src: c.img, alt: `${c.name} vehicle`, loading: 'lazy', onerror: (e) => e.target.remove() })),
-            el('div', { class: 'lb-veh-body' },
-              el('div', { class: 'lb-veh-top' },
-                el('h3', {}, c.name),
-                el('span', { class: 'lb-veh-cap' }, el('i', { 'data-lucide': 'user-round' }), c.capacity === 1 ? '1 seat' : `${c.capacity} seats`)),
-              el('p', { class: 'lb-veh-desc' }, c.desc),
-              el('div', { class: 'lb-veh-foot' },
-                el('span', { class: 'lb-veh-fare t-num' }, el('small', {}, 'From '), el('strong', {}, `₱${fare}`)),
-                el('button', { class: 'lb-veh-go', type: 'button', 'aria-label': `Book ${c.name}`, onclick: () => go('login', { next: 'passenger' }) },
-                  el('i', { 'data-lucide': 'arrow-right' })))));
-        }))));
-  page.appendChild(fleet);
+        el('h2', { class: 'lb-h2' }, 'Four ways to ride.')),
+      el('div', { class: 'lb-head-aside' },
+        el('p', { class: 'lb-lead' }, `Starting fares for a ${SAMPLE_KM} km trip across the city. Every fare is itemized before you book.`),
+        el('div', { class: 'lb-rail-btns' }, prev, next))),
+    el('div', { 'data-reveal': 'media' }, rail)));
 
-  /* promos — the expressive campaign rail */
-  const promoSec = el('section', { class: 'lb-section lb-section--alt', id: 'lb-promos' },
+  /* ---------- offers ---------- */
+  main.appendChild(el('section', { class: 'lb-section lb-offers', id: 'lb-promos' },
     el('div', { class: 'container' },
-      el('div', { class: 'lb-sec-head', 'data-reveal': '' },
-        el('span', { class: 'lb-eyebrow' }, 'Offers'),
-        el('h2', { class: 'lb-h2' }, 'Sakay deals, updated weekly'),
-        el('p', { class: 'lb-lead' }, 'Copy a code and enter it before confirming your ride — discounts apply instantly at checkout.')),
-      el('div', { class: 'lb-promo-wrap', 'data-reveal': '' }, promoRail(PROMOS))));
-  page.appendChild(promoSec);
+      el('div', { class: 'lb-head-split', 'data-reveal': '' },
+        el('div', {},
+          el('span', { class: 'lb-eyebrow' }, 'Offers'),
+          el('h2', { class: 'lb-h2' }, 'Sakay deals, this week.')),
+        el('p', { class: 'lb-lead' }, 'Copy a code and add it before you confirm. The discount shows up in your fare breakdown straight away.')),
+      el('div', { class: 'lb-ads' },
+        offerAd('LAKBAY50', 'feature', { kicker: 'Flash sale', img: 'assets/promos/campaign-car.webp' }),
+        offerAd('FIRSTTRIP', 'poster', { kicker: 'For new riders', delay: 80 }),
+        offerAd('MOTOPH', 'window', { kicker: 'Moto week', img: 'assets/promos/campaign-scooter.webp', delay: 140 }),
+        offerAd('PAYDAY10', 'strip', { kicker: 'Payday special', img: 'assets/promos/campaign-coins.webp' })))));
 
-  /* rider CTA — midnight band with bolt watermark */
-  const riderCta = el('section', { class: 'lb-section', id: 'lb-riders' },
-    el('div', { class: 'container' },
-      el('div', { class: 'lb-cta-band brand-routes', 'data-reveal': '' },
-        el('span', { class: 'lb-cta-bolt', 'aria-hidden': 'true', html: h`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.25 9.06 21.68 11.24Q23.92 11.9 22.28 13.56L21.01 14.87Q20.25 15.65 19.4 16.32L11.07 22.91Q9.83 23.9 10.05 22.33L10.9 16.05Q11 15.31 11.35 14.65L14.25 9.06Z" fill="currentColor" opacity="0.8"/><path d="M14.25 9.06Q12.23 12.6 11 15.31" fill="none" stroke="rgba(0,0,0,0.32)" stroke-width="1.1" stroke-linecap="round"/><path d="M2.27 13.17Q0.08 12.65 1.69 11.07L11.47 1.45Q12.83 0.1 14.75 0.1L17.25 0.1Q19 0.1 18.18 1.65L14.72 8.18Q14.25 9.06 13.82 9.96L11.23 15.31L2.27 13.17Z" fill="currentColor"/></svg>` }),
-        el('div', { class: 'grow' },
-          el('h2', { class: 'lb-h2' }, 'Drive when you want. Earn while you move.'),
-          el('p', { class: 'lb-lead' }, 'Register as a rider, submit your documents for verification, and run the full request-to-earnings loop — accept bookings from passengers in real time.'),
-          el('div', { class: 'lb-hero-cta' },
-            el('button', { class: 'btn btn--primary btn--lg', onclick: () => go('register', { next: 'rider' }) }, 'Become a rider'),
-            createInstallButton({ variant: 'outline-light', size: 'lg', icon: 'smartphone' }))))));
-  page.appendChild(riderCta);
+  /* ---------- rider recruitment ---------- */
+  main.appendChild(el('section', { class: 'lb-section lb-riders', id: 'lb-riders' },
+    el('div', { class: 'container lb-riders-grid' },
+      el('div', { class: 'lb-riders-media' },
+        el('img', { class: 'lb-riders-photo', src: 'assets/promos/campaign-helmet.webp', alt: 'A Lakbay rider helmet, green with lime stripes', loading: 'lazy', decoding: 'async', 'data-reveal': 'media' }),
+        earningsPreview()),
+      el('div', { class: 'lb-riders-copy', 'data-reveal': '' },
+        el('span', { class: 'lb-eyebrow lb-eyebrow--dark' }, 'Drive with Lakbay'),
+        el('h2', { class: 'lb-h2' }, 'Your city. Your hours. Your earnings.'),
+        el('p', { class: 'lb-lead' }, 'Go online when it suits you, take the trips you want, and watch every peso land on your dashboard.'),
+        el('ol', { class: 'lb-steps' },
+          ...[['Register', 'Create a rider account in about a minute.'],
+            ['Get verified', 'Upload your license and vehicle papers for review.'],
+            ['Go online', 'Accept nearby requests and track your earnings daily.']]
+            .map(([t, d], i) => el('li', {},
+              el('span', { class: 'lb-steps-n t-num' }, String(i + 1).padStart(2, '0')),
+              el('span', {}, el('strong', {}, t), el('span', {}, d))))),
+        el('div', { class: 'lb-hero-cta' },
+          el('button', { class: 'btn btn--primary btn--lg lb-cta-go', onclick: drive }, 'Become a rider', uiIcon('arrow-right')),
+          createInstallButton({ variant: 'outline-light', size: 'lg', icon: 'smartphone' })),
+        el('button', { class: 'lb-textlink', type: 'button', onclick: () => go('login', { next: 'rider' }) }, 'Already a rider? Sign in')))));
 
   /* footer — midnight foundation */
   const footer = el('footer', { class: 'lb-footer' },
@@ -494,17 +688,13 @@ function renderLanding() {
   Icons.refresh(page);
   initReveals(page);
   initScrollSpy(page);
+  /* Scrolling stays fully native (no wheel hijacking): smoothing is applied
+     only to scroll-linked visuals (journey track), never to the page. */
+  initJourney(page);
+  initRail(rail, prev, next);
 
-  /* buttery scroll + parallax + pointer tilt (landing only) */
-  smoothScroll = initSmoothScroll();
-  const parallax = initParallax(page);
-  const tilt = initPointerTilt(page);
-  landingOff.push(() => { smoothScroll.destroy(); smoothScroll = null; });
-  landingOff.push(() => parallax.destroy());
-  landingOff.push(() => tilt.destroy());
-
-  /* fan deck — fit the stage to the art column (plus a slice of the page
-     margin), then fan the cards out from the centre on load. */
+  /* fan deck — fit the stage to the art column, then fan the cards out
+     from the centre on load. */
   initFanScale(page);
   const fan = qs('.lb-fan', page);
   if (fan) {
@@ -515,7 +705,7 @@ function renderLanding() {
     });
     requestAnimationFrame(() => requestAnimationFrame(() => {
       fan.classList.add('is-in');
-      setTimeout(() => items.forEach((it) => { it.style.transitionDelay = ''; }), 950);
+      setTimeout(() => items.forEach((it) => { it.style.transitionDelay = ''; }), 1200);
     }));
   }
 
@@ -528,6 +718,119 @@ function renderLanding() {
   }
 
   maybeShowBanner({ delay: 2600 });
+}
+
+/* Journey — desktop: the section is made tall and its stage pinned; page
+   scroll progress drives the track sideways. The track follows the target
+   with frame-rate-independent exponential smoothing (critically damped:
+   eases in and out, never overshoots). Mobile / reduced motion: a plain
+   horizontal scroller with snap points. Stage buttons jump either way. */
+function initJourney(page) {
+  const sec = qs('.lb-journey', page);
+  if (!sec) return;
+  const vp = qs('.lb-jr-viewport', sec);
+  const trackEl = qs('.lb-jr-track', sec);
+  const stages = [...trackEl.children];
+  const steps = [...sec.querySelectorAll('.lb-jr-step')];
+  const n = stages.length;
+  const mq = window.matchMedia('(min-width: 960px) and (min-height: 640px)');
+  let pinned = false; let dist = 0; let x = 0; let target = 0; let raf = 0; let last = 0; let active = -1;
+
+  const setActive = (i) => {
+    if (i === active) return;
+    active = i;
+    stages.forEach((s, k) => s.classList.toggle('is-active', k === i));
+    steps.forEach((b, k) => {
+      b.classList.toggle('is-active', k === i);
+      if (k === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
+  };
+  const paint = () => { trackEl.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`; };
+  const frame = (t) => {
+    const dt = last ? Math.min(64, t - last) : 16;
+    last = t;
+    x += (target - x) * (1 - Math.exp(-dt / 85));
+    if (Math.abs(target - x) < 0.3) x = target;
+    paint();
+    if (x !== target) raf = requestAnimationFrame(frame);
+    else { raf = 0; last = 0; }
+  };
+  const update = (snap = false) => {
+    if (!pinned) return;
+    const p = dist ? Math.min(1, Math.max(0, -sec.getBoundingClientRect().top / dist)) : 0;
+    target = -p * dist;
+    sec.style.setProperty('--jr-p', p.toFixed(4));
+    setActive(Math.round(p * (n - 1)));
+    if (snap) { x = target; paint(); return; }
+    if (!raf) raf = requestAnimationFrame(frame);
+  };
+  const onSwipe = () => {
+    if (pinned) return;
+    const max = vp.scrollWidth - vp.clientWidth;
+    const p = max > 0 ? vp.scrollLeft / max : 0;
+    sec.style.setProperty('--jr-p', p.toFixed(4));
+    setActive(Math.round(p * (n - 1)));
+  };
+  const measure = () => {
+    pinned = mq.matches && !reduceMotion();
+    sec.classList.toggle('is-pinned', pinned);
+    if (!pinned) {
+      sec.style.height = '';
+      trackEl.style.transform = '';
+      onSwipe();
+      return;
+    }
+    // stages are evenly spaced, so stage i is in place at progress i/(n-1)
+    dist = stages[n - 1].offsetLeft - stages[0].offsetLeft;
+    const pinH = qs('.lb-jr-pin', sec).offsetHeight;
+    sec.style.height = `${pinH + dist}px`;
+    update(true);
+  };
+  const goTo = (i) => {
+    const behavior = reduceMotion() ? 'auto' : 'smooth';
+    if (pinned) {
+      const top = sec.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: top + (i / (n - 1)) * dist, behavior });
+    } else {
+      vp.scrollTo({ left: stages[i].offsetLeft - stages[0].offsetLeft, behavior });
+    }
+  };
+
+  steps.forEach((b, i) => b.addEventListener('click', () => goTo(i)));
+  // keyboard users tabbing into an off-screen stage get it scrolled into view
+  trackEl.addEventListener('focusin', (e) => {
+    const i = stages.findIndex((s) => s.contains(e.target));
+    if (i >= 0 && pinned) goTo(i);
+  });
+  vp.addEventListener('scroll', onSwipe, { passive: true });
+  track(window, 'scroll', () => update(false), { passive: true });
+  track(window, 'resize', measure);
+  if (mq.addEventListener) track(mq, 'change', measure);
+  const ro = new ResizeObserver(() => measure());
+  ro.observe(trackEl);
+  landingOff.push(() => { ro.disconnect(); cancelAnimationFrame(raf); });
+  measure();
+  setActive(0);
+}
+
+/* Fleet rail — native horizontal scroll (touch, trackpad, shift+wheel),
+   plus prev/next buttons that step one vehicle at a time. */
+function initRail(rail, prev, next) {
+  const sync = () => {
+    const max = rail.scrollWidth - rail.clientWidth - 2;
+    prev.disabled = rail.scrollLeft <= 2;
+    next.disabled = rail.scrollLeft >= max;
+  };
+  const step = (dir) => {
+    const first = rail.firstElementChild;
+    const w = first ? first.getBoundingClientRect().width + 16 : rail.clientWidth * 0.8;
+    rail.scrollBy({ left: dir * w, behavior: reduceMotion() ? 'auto' : 'smooth' });
+  };
+  prev.addEventListener('click', () => step(-1));
+  next.addEventListener('click', () => step(1));
+  rail.addEventListener('scroll', sync, { passive: true });
+  track(window, 'resize', sync);
+  requestAnimationFrame(sync);
 }
 
 /* Scale the fixed-size fan stage down to its column and slide the overflow
@@ -555,43 +858,10 @@ function initFanScale(page) {
   apply();
   const ro = new ResizeObserver(apply);
   ro.observe(art);
+  landingOff.push(() => ro.disconnect());
   track(window, 'resize', apply);
 }
 
-/* ---------- how-it-works column ----------
-   One app experience per card: a chrome header (icon tile + app chip),
-   a numbered timeline with icon tiles, and a full-width CTA.
-   `tone` flips the whole column between ice-white and midnight. */
-function lbHowCol({ tone = 'light', icon, chip, title, steps, cta, delay = 0 }) {
-  const col = el('div', { class: `lb-how-col lb-how-col--${tone}`, 'data-reveal': '' });
-  if (delay) col.style.setProperty('--reveal-delay', `${delay}ms`);
-
-  col.appendChild(el('div', { class: 'lb-how-head' },
-    el('span', { class: 'lb-how-badge', 'aria-hidden': 'true' },
-      el('i', { 'data-lucide': icon })),
-    el('div', { class: 'lb-how-head-txt' },
-      el('span', { class: 'lb-how-chip' }, chip),
-      el('h3', {}, title))));
-
-  const list = el('ol', { class: 'lb-how-steps' });
-  steps.forEach(([num, ic, stepTitle, body]) => {
-    list.appendChild(el('li', { class: 'lb-how-step' },
-      el('span', { class: 'lb-how-num t-num', 'aria-hidden': 'true' }, num),
-      el('span', { class: 'lb-how-tile', 'aria-hidden': 'true' },
-        el('i', { 'data-lucide': ic })),
-      el('div', { class: 'lb-how-body' },
-        el('h4', {}, stepTitle),
-        el('p', {}, body))));
-  });
-  col.appendChild(list);
-
-  const ctaBtn = el('button', { class: `btn ${tone === 'dark' ? 'btn--primary' : 'btn--dark'} btn--lg btn--block` },
-    cta[0], el('i', { 'data-lucide': 'arrow-right' }));
-  ctaBtn.addEventListener('click', cta[1]);
-  col.appendChild(el('div', { class: 'lb-how-foot' }, ctaBtn));
-
-  return col;
-}
 
 /* ==========================================================
    Login view
@@ -936,6 +1206,9 @@ function renderGoodbye() {
 /* ---------- router wiring ---------- */
 function renderRoute() {
   const { id, params } = parseHash();
+  // landing listeners (scroll spy, journey, menu) never outlive the landing
+  landingOff.forEach((f) => f());
+  landingOff = [];
   window.scrollTo(0, 0);
   switch (id) {
     case 'login': return renderLogin(params);
@@ -948,5 +1221,6 @@ function renderRoute() {
   }
 }
 
-window.addEventListener('hashchange', renderRoute);
+// Route changes cross-fade (View Transitions where supported, instant otherwise)
+window.addEventListener('hashchange', () => withViewTransition(renderRoute));
 renderRoute();

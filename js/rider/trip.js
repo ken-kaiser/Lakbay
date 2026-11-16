@@ -35,6 +35,17 @@ function myActiveBooking() {
     || Bookings.activeFor(me, 'rider').find((b) => b.riderId === me) || null;
 }
 
+/* Trip just finished in the last 15 minutes — keep showing its summary on
+   the Trip tab instead of the empty state, so the rider sees the result. */
+function myRecentlyCompleted() {
+  const me = App.user.id;
+  const cutoff = Date.now() - 15 * 60000;
+  return Bookings.all().find((b) => b.riderId === me && b.status === 'completed'
+    && ((b.receipt && b.receipt.paidAt) || 0) > cutoff && !b.summaryDismissed) || null;
+}
+
+const METHOD_LABEL = { cash: 'Cash', gcash: 'GCash', maya: 'Maya' };
+
 function approachOrigin(pickup, seedId) {
   // Within 6 km only, so a pickup outside Manila doesn't route the driver from Manila
   const near = nearbyPlaces(pickup, 5, 6).filter((p) => p.id !== pickup.placeId);
@@ -48,7 +59,7 @@ function approachOrigin(pickup, seedId) {
 const tripView = {
   id: 'trip',
   render(root) {
-    const b = myActiveBooking();
+    const b = myActiveBooking() || myRecentlyCompleted();
     App.setHeader('Current trip', b ? `Ref ${b.ref}` : 'No active trip');
 
     const wrap = el('div', { class: 'cl-trip-layout' });
@@ -57,8 +68,8 @@ const tripView = {
     if (!b) {
       root.appendChild(el('div', { class: 'empty', style: 'padding:52px 20px' },
         el('img', { src: 'assets/illustrations/empty-rides.png', alt: '', style: 'width:150px;margin:0 auto 14px', onerror: (e) => e.target.remove() }),
-        el('h4', {}, 'No active trip'),
-        el('p', {}, 'You have not accepted a booking yet. Go online on your dashboard and wait for a ride request.'),
+        el('h3', {}, 'No active trip'),
+        el('p', {}, 'Go online and wait for a request, or tap a waiting passenger on the dashboard map.'),
         el('button', { class: 'btn btn--primary btn--sm', style: 'margin-top:12px' }, el('i', { 'data-lucide': 'gauge' }), 'Open dashboard')));
       root.querySelector('button').addEventListener('click', () => App.navigate('dashboard'));
       Icons.refresh(root);
@@ -107,7 +118,7 @@ const tripView = {
     body.appendChild(pc);
 
     /* route summary */
-    body.appendChild(el('div', { class: 'card card--flat', style: 'padding:12px 13px' },
+    body.appendChild(el('div', { class: 'card card--flat card--inset' },
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
           el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, b.pickup.name),
@@ -173,25 +184,50 @@ const tripView = {
         const doneBtn = el('button', { class: 'btn btn--primary btn--lg' },
           el('i', { 'data-lucide': 'flag' }), 'Complete trip');
         doneBtn.addEventListener('click', async () => {
+          // Payment step: cash is collected by the driver; e-wallets are charged in-app
+          const isCash = cur.payment.method === 'cash';
+          const method = METHOD_LABEL[cur.payment.method] || cur.payment.method;
           const ok = await confirmDialog({
-            title: 'Complete the trip?',
-            message: `You arrived at ${cur.dropoff.name}. Completing records the fare (${peso(cur.fare.total, { whole: true })} · net ${peso(cur.fare.total * 0.8, { whole: true })}) to your earnings.`,
-            confirmLabel: 'Complete trip', icon: 'flag',
+            title: isCash ? `Collect ${peso(cur.fare.total)} cash` : `Confirm ${method} payment`,
+            message: isCash
+              ? `You arrived at ${cur.dropoff.name}. Collect ${peso(cur.fare.total)} in cash from ${cur.passengerName}, then confirm. Your net is ${peso(cur.fare.total * 0.8, { whole: true })} after 20% commission.`
+              : `You arrived at ${cur.dropoff.name}. ${cur.passengerName}'s ${method} wallet will be charged ${peso(cur.fare.total)} (simulated). Your net is ${peso(cur.fare.total * 0.8, { whole: true })} after 20% commission.`,
+            confirmLabel: isCash ? 'Cash received · complete' : 'Complete trip', icon: isCash ? 'banknote' : 'flag',
           });
           if (!ok) return;
           Sim.riderStatusAdvance(cur.id, 'completed');
-          Toast.success('Trip completed', `Net ${peso(cur.fare.total * 0.8, { whole: true })} added to today's earnings.`);
-          setTimeout(() => offerPassengerRating(cur), 700);
+          Toast.success('Payment received', `Net ${peso(cur.fare.total * 0.8, { whole: true })} added to today's earnings.`);
+          // re-render shows the trip summary, which also opens the passenger rating
           App.navigate('trip', {}, { replace: true });
         });
         actionArea.append(navBtn, doneBtn);
       } else if (cur.status === 'completed') {
+        const gross = cur.fare.total;
+        const commission = Math.round(gross * 0.2 * 100) / 100;
+        const net = Math.round((gross - commission) * 100) / 100;
+        const row = (label, value, strong) => el('div', { class: 'row-between', style: 'padding:4px 0' },
+          el('span', { class: strong ? 't-strong' : 't-small' }, label),
+          el('span', { class: (strong ? 't-strong ' : '') + 't-num' }, value));
+        const summary = el('div', { class: 'card card--flat card--inset' },
+          el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' },
+            el('i', { 'data-lucide': 'receipt' }), el('span', { class: 't-strong' }, 'Trip summary')),
+          row('Payment', `${METHOD_LABEL[cur.payment.method] || cur.payment.method} · paid`),
+          row('Distance', `${Number(cur.distanceKm).toFixed(1)} km`),
+          row('Fare collected', peso(gross)),
+          row('Lakbay commission (20%)', '\u2212' + peso(commission)),
+          row('Your earnings', peso(net), true));
+        const nextBtn = el('button', { class: 'btn btn--primary btn--lg' }, el('i', { 'data-lucide': 'radar' }), 'Find next ride');
+        nextBtn.addEventListener('click', () => {
+          Bookings.update(cur.id, { summaryDismissed: true }, { publish: false });
+          App.navigate('dashboard');
+        });
+        const earnBtn = el('button', { class: 'btn btn--outline btn--lg' }, el('i', { 'data-lucide': 'wallet' }), 'Open earnings');
+        earnBtn.addEventListener('click', () => App.navigate('earnings'));
         actionArea.append(
           el('div', { class: 'info-banner info-banner--success' },
             el('i', { 'data-lucide': 'circle-check' }),
-            el('span', {}, `Trip completed · ${peso(cur.fare.total)} fare · net ${peso(cur.fare.total * 0.8)}`)),
-          el('button', { class: 'btn btn--outline btn--lg' }, el('i', { 'data-lucide': 'wallet' }), 'Open earnings'));
-        actionArea.querySelector('button').addEventListener('click', () => App.navigate('earnings'));
+            el('span', {}, `Trip completed · ${cur.passengerName} dropped off at ${cur.dropoff.name}`)),
+          summary, nextBtn, earnBtn);
       }
       Icons.refresh(actionArea);
     }
@@ -344,9 +380,13 @@ function buildRiderChat(b) {
 }
 
 /* ---------- rate passenger ---------- */
+let ratingOpenFor = null;
 function offerPassengerRating(b) {
   const cur = Bookings.byId(b.id);
   if (!cur || cur.status !== 'completed' || cur.ratingRider) return;
+  if (ratingOpenFor === cur.id) return; // already showing for this trip
+  ratingOpenFor = cur.id;
+  setTimeout(() => { if (ratingOpenFor === cur.id) ratingOpenFor = null; }, 60000);
   let stars = 0;
   const starRow = el('div', { class: 'cl-stars-row' });
   for (let i = 5; i >= 1; i--) {

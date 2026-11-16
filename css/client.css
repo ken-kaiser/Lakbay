@@ -7,10 +7,13 @@
 /* ---------- Generic view scaffolding ---------- */
 .cl-stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* Section headings are plain typography — no icon tiles, no icon prepends */
-.cl-section-title { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; }
+.cl-section-title { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; line-height: 1.32; margin: 0; }
 /* Standalone fallback if an icon is ever kept inline: muted, no container */
 .cl-section-title i, .cl-section-title svg { width: 17px; height: 17px; color: var(--c-ink-4); flex-shrink: 0; }
-.cl-section-more { font-size: var(--fs-sm); font-weight: 600; color: var(--c-primary-deep); white-space: nowrap; }
+.cl-section-more {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--c-primary-deep); white-space: nowrap;
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 6px; margin-right: -6px; /* bigger tap area, same look */
+}
 
 /* Scroll rows (chips / promos) — horizontal, no page overflow */
 .cl-hscroll {
@@ -55,7 +58,7 @@
 .cl-acard-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 
 /* ---------- Booking launcher ---------- */
-.cl-launcher { padding: 16px; }
+.cl-launcher { padding: var(--card-pad); }
 .cl-searchbar {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   background: var(--c-surface-2); border: 1.5px solid var(--c-line-strong);
@@ -80,7 +83,7 @@
 .cl-route-row .cl-rr-dot--end { border-color: var(--c-ink); background: var(--c-ink); }
 /* Label stacked above value — keeps "PICKUP" and the address from colliding */
 .cl-route-row .cl-rr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.cl-route-row .cl-rr-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--c-ink-4); }
+.cl-route-row .cl-rr-label { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--c-ink-4); }
 .cl-route-row .cl-rr-value { font-size: var(--fs-md); font-weight: 600; color: var(--c-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-route-row .cl-rr-value.placeholder { color: var(--c-ink-4); font-weight: 500; }
 .cl-route-row > i, .cl-route-row > svg { width: 17px; height: 17px; color: var(--c-ink-4); flex-shrink: 0; }
@@ -176,7 +179,7 @@
 
 .cl-ac-panel { display: flex; flex-direction: column; max-height: 430px; overflow-y: auto; border: 1px solid var(--c-line); border-radius: var(--r-lg); background: var(--c-surface); }
 .cl-ac-head {
-  padding: 10px 14px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  padding: 10px 14px 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--c-ink-4); display: flex; align-items: center; gap: 7px;
 }
 .cl-ac-head i, .cl-ac-head svg { width: 13px; height: 13px; }
@@ -223,7 +226,7 @@
 .cl-ride-list .ride-opt.selected .ro-price { color: var(--c-primary-deep); }
 .cl-cap-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10.5px; font-weight: 600; color: var(--c-ink-3);
+  font-size: 12px; font-weight: 600; color: var(--c-ink-3);
   background: var(--c-surface-2); border-radius: var(--r-full); padding: 2px 8px; white-space: nowrap;
 }
 .cl-cap-chip i, .cl-cap-chip svg { width: 11px; height: 11px; }
@@ -234,7 +237,7 @@
 }
 .cl-details-block { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-md); padding: 13px; }
 .cl-details-label {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--c-ink-4); margin-bottom: 9px; display: flex; align-items: center; gap: 6px;
 }
 .cl-details-label i, .cl-details-label svg { width: 13px; height: 13px; }
@@ -242,7 +245,7 @@
 .cl-pay-list { display: flex; flex-direction: column; gap: 8px; }
 .cl-pay-list .pay-opt .po-sub .pay-num { font-weight: 600; color: var(--c-ink-2); }
 .cl-default-badge {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   background: var(--c-primary-soft); color: var(--c-primary-deep);
   padding: 2px 7px; border-radius: var(--r-full);
 }
@@ -266,7 +269,7 @@
   padding: 12px 14px; display: flex; align-items: center; gap: 12px;
 }
 .cl-sticky-foot .cl-total { display: flex; flex-direction: column; min-width: 0; }
-.cl-sticky-foot .cl-total .cl-total-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-ink-4); }
+.cl-sticky-foot .cl-total .cl-total-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-ink-4); }
 .cl-sticky-foot .cl-total .cl-total-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .cl-sticky-foot .btn { margin-left: auto; }
 @media (max-width: 1023px) {
@@ -279,7 +282,7 @@
 .cl-confirm-card { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .cl-confirm-block { display: flex; flex-direction: column; gap: 9px; }
 .cl-confirm-label {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--c-ink-4); display: flex; align-items: center; gap: 6px;
 }
 .cl-confirm-label i, .cl-confirm-label svg { width: 13px; height: 13px; }
@@ -363,7 +366,7 @@
 .cl-driver-vehicle { font-size: var(--fs-xs); color: var(--c-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-plate {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 11.5px; font-weight: 600; letter-spacing: 0.09em;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.09em;
   background: var(--c-surface-2); border: 1px solid var(--c-line-strong);
   color: var(--c-ink); padding: 1.5px 8px; border-radius: var(--r-xs); white-space: nowrap;
 }
@@ -459,7 +462,7 @@
 }
 .cl-method-tile:hover { border-color: var(--c-ink-4); }
 .cl-method-tile.selected { border-color: var(--c-primary); box-shadow: 0 0 0 3px var(--c-primary-soft); background: var(--c-primary-softer); }
-.cl-method-tile .po-logo { width: 40px; height: 40px; border-radius: var(--r-sm); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+.cl-method-tile .po-logo { width: 40px; height: 40px; border-radius: var(--r-sm); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
 .cl-method-tile .po-logo i, .cl-method-tile .po-logo svg { width: 19px; height: 19px; }
 
 /* ==========================================================
@@ -470,7 +473,7 @@
   .cl-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
   .cl-profile-grid > .cl-profile-wide { grid-column: 1 / -1; }
 }
-.cl-profile-card { padding: 16px; display: flex; flex-direction: column; gap: 13px; min-width: 0; }
+.cl-profile-card { padding: var(--card-pad); display: flex; flex-direction: column; gap: var(--card-gap); min-width: 0; }
 .cl-profile-avatar-row { display: flex; align-items: center; gap: 14px; }
 .cl-profile-avatar-row .avatar--xl { width: 72px; height: 72px; font-size: 24px; }
 .cl-form-2col { display: grid; grid-template-columns: 1fr; gap: 4px 12px; }
