@@ -197,7 +197,7 @@
 .cl-trip-banner { position: absolute; z-index: 500; left: 12px; right: 12px; bottom: 12px; }
 .cl-trip-eta {
   display: flex; align-items: center; gap: 9px;
-  background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px);
+  background: var(--c-glass); backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--c-line); border-radius: var(--r-full); box-shadow: var(--sh-2);
   padding: 8px 14px; font-size: var(--fs-sm); font-weight: 600; color: var(--c-ink);
@@ -315,3 +315,135 @@
 @media (min-width: 1024px) {
   .rd-stack { max-width: 980px; }
 }
+
+/* ---------- Trip panel (redesign) ---------- */
+@media (min-width: 768px) {
+  .app-view--flush .cl-trip-layout { padding: 24px; }
+}
+@media (min-width: 1024px) {
+  .app-view--flush .cl-trip-layout { padding: 28px 32px; grid-template-columns: minmax(0, 1fr) 420px; gap: 24px; }
+  .cl-trip-map-wrap { height: calc(100vh - var(--header-h) - 56px); border-radius: 22px; }
+}
+@media (max-width: 767px) {
+  .cl-trip-map-wrap { border-radius: 0; border: 0; height: 42vh; }
+  .cl-trip-panel { margin-top: -30px; position: relative; z-index: 2; border-radius: 22px 22px 0 0; border-bottom: 0; }
+}
+.cl-trip-panel { border-radius: 22px; box-shadow: var(--sh-2); overflow: hidden; }
+.cl-trip-panel-head { border-bottom: 0; padding: 16px 16px 0; }
+.cl-trip-panel-head .status-pill { font-size: var(--fs-md); }
+.cl-trip-panel-body { padding: 18px 16px 18px; gap: 18px; }
+.cl-trip-panel .trip-steps { padding-bottom: 14px; border-bottom: 1px solid var(--c-line); }
+.cl-trip-route { display: flex; flex-direction: column; }
+.cl-trip-route .route-line-item .grow { padding-bottom: 10px; }
+.cl-trip-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--c-line); }
+.cl-trip-facts dt { font-size: 12px; font-weight: 600; color: var(--c-ink-4); }
+.cl-trip-facts dd { margin: 2px 0 0; font-size: var(--fs-md); font-weight: 700; }
+.cl-driver-card .avatar--lg { width: 52px; height: 52px; }
+.cl-driver-name { font-family: var(--font-display); font-size: 17px; letter-spacing: -0.015em; }
+.cl-trip-eta { font-weight: 650; }
+.rd-trip-summary { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; border-top: 1px solid var(--c-line); border-bottom: 1px solid var(--c-line); }
+.rd-trip-summary > .row { font-family: var(--font-display); }
+
+/* ==========================================================================
+   Rider redesign — operational console
+   ========================================================================== */
+.rd-stack { gap: 22px; }
+@media (min-width: 1024px) { .rd-stack { max-width: 1180px; } }
+
+/* status console: midnight in both themes; lime only when you're working */
+.rd-console {
+  position: relative; overflow: hidden; isolation: isolate;
+  background: var(--c-chrome); color: var(--c-on-dark);
+  border-radius: 22px; padding: 20px 20px 18px;
+  display: flex; flex-direction: column; gap: 20px;
+  border: 1px solid rgba(244, 246, 239, 0.06);
+}
+.rd-console::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(600px 220px at 90% 0%, rgba(182, 245, 0, 0.16), transparent 70%);
+  opacity: 0; transition: opacity var(--motion-slow) var(--ease-standard);
+}
+.rd-console.is-online::before { opacity: 1; }
+.rd-console-top { display: flex; align-items: center; gap: 16px; }
+.rd-console-top > div:first-child { flex: 1; min-width: 0; }
+.rd-console-title { font-family: var(--font-display); font-size: clamp(22px, 2.4vw, 28px); font-weight: 650; letter-spacing: -0.03em; line-height: 1.1; }
+.rd-console-sub { font-size: var(--fs-md); color: rgba(244, 246, 239, 0.66); margin-top: 4px; }
+.rd-console .rd-online-title { gap: 10px; }
+.rd-console .rd-status-dot { width: 10px; height: 10px; background: rgba(244, 246, 239, 0.36); }
+.rd-console .rd-status-dot--online { background: var(--c-primary); }
+.rd-console .rd-status-dot--online::after { border-color: var(--c-primary); }
+.rd-console.is-locked .rd-status-dot { background: var(--c-accent); }
+/* the switch is the console's main control: big, unmistakable */
+.rd-console .switch--lg .knob { width: 68px; height: 38px; background: rgba(244, 246, 239, 0.14); border-color: rgba(244, 246, 239, 0.2); }
+.rd-console .switch--lg .knob::after { width: 30px; height: 30px; top: 3px; left: 3px; }
+.rd-console .switch--lg.on .knob { background: var(--c-primary); border-color: var(--c-primary); }
+.rd-console .switch--lg.on .knob::after { transform: translateX(30px); background: var(--c-dark); }
+.rd-console .switch:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 4px; border-radius: var(--r-full); }
+.rd-console .rd-today-metrics { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: 0; padding-top: 18px; border-top: 1px solid rgba(244, 246, 239, 0.1); }
+.rd-console .rd-metric { padding: 0 16px; border-left: 1px solid rgba(244, 246, 239, 0.1); }
+.rd-console .rd-metric:first-child { padding-left: 0; border-left: 0; }
+.rd-console .t-overline { color: rgba(244, 246, 239, 0.56); letter-spacing: 0.06em; }
+.rd-console .rd-metric-value { font-family: var(--font-display); font-size: 22px; letter-spacing: -0.02em; color: var(--c-on-dark); }
+.rd-console .rd-metric:first-child .rd-metric-value { font-size: 34px; letter-spacing: -0.04em; color: var(--c-primary); }
+@media (max-width: 599px) {
+  .rd-console { padding: 18px 16px 16px; }
+  .rd-console .rd-today-metrics { grid-template-columns: 1fr 1fr; gap: 14px 0; }
+  .rd-console .rd-metric { padding: 0 0 0 14px; }
+  .rd-console .rd-metric:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .rd-console .rd-metric:first-child { grid-column: 1 / -1; }
+  .rd-console .rd-metric:nth-child(2) { padding-left: 0; border-left: 0; }
+  .rd-console .rd-metric:nth-child(3) { padding-left: 14px; border-left: 1px solid rgba(244, 246, 239, 0.1); }
+  .rd-console .rd-metric:nth-child(4) { grid-column: 1 / -1; padding-left: 0; border-left: 0; }
+}
+
+/* verification banner: flat row under the console */
+.rd-verify-banner { border-radius: var(--r-lg); background: var(--c-warn-soft); border-color: transparent; }
+.rd-verify-banner--pending { background: var(--c-surface); border-color: var(--c-line); }
+
+/* dashboard body: demand map leads, activity sits beside it */
+.rd-dash-grid { display: grid; gap: 24px; }
+@media (min-width: 1024px) { .rd-dash-grid { grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); align-items: start; } }
+.rd-dash-map { display: flex; flex-direction: column; gap: 10px; }
+.rd-sec-head { display: flex; align-items: baseline; justify-content: space-between; }
+.rd-map-dash { height: 300px; border-radius: 18px; }
+@media (min-width: 1024px) { .rd-map-dash { height: 420px; } }
+.rd-dash-side { display: flex; flex-direction: column; gap: 26px; }
+.rd-side-sec { display: flex; flex-direction: column; gap: 6px; }
+.rd-side-sec .list-item { padding: 12px 2px; }
+.rd-side-sec .empty { align-items: flex-start; text-align: left; padding: 10px 0; }
+.rd-side-sec .empty .empty-icon { display: none; }
+
+/* header status chip — on every rider page */
+.rd-status-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 12px 0 10px; border-radius: var(--r-full);
+  font-size: 13px; font-weight: 700; color: var(--c-ink-2);
+  background: var(--c-surface-2); border: 1px solid var(--c-line);
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.rd-status-chip:hover { text-decoration: none; border-color: var(--c-line-strong); }
+.rd-status-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-ink-4); }
+.rd-status-chip.is-on { background: var(--c-inverse); color: var(--c-on-inverse); border-color: transparent; }
+.rd-status-chip.is-on .rd-status-chip-dot { background: var(--c-primary); box-shadow: 0 0 0 3px rgba(182, 245, 0, 0.25); }
+.rd-status-chip.is-warn .rd-status-chip-dot { background: var(--c-accent); }
+
+/* incoming request sheet */
+.rd-req { display: flex; flex-direction: column; gap: 16px; }
+.rd-expiry { display: flex; flex-direction: column; gap: 6px; }
+.rd-expiry-bar { height: 4px; border-radius: 4px; background: var(--c-surface-3); position: relative; overflow: hidden; }
+.rd-expiry-bar::after {
+  content: ""; position: absolute; inset: 0; transform-origin: left center;
+  transform: scaleX(calc(var(--p) / 100)); background: var(--c-accent);
+  transition: transform 1s linear;
+}
+.rd-expiry-txt { font-size: 12.5px; font-weight: 650; color: var(--c-ink-3); }
+.rd-req-fare { display: flex; flex-direction: column; gap: 2px; }
+.rd-req-net { font-family: var(--font-display); font-size: 44px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; }
+.rd-req-net-sub { font-size: var(--fs-sm); color: var(--c-ink-3); }
+.rd-req-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 12px 0; border-top: 1px solid var(--c-line); border-bottom: 1px solid var(--c-line); }
+.rd-req-facts dt { font-size: 12px; font-weight: 600; color: var(--c-ink-4); }
+.rd-req-facts dd { margin: 2px 0 0; font-size: 15px; font-weight: 700; }
+.rd-req-route .route-line-item .grow { padding-bottom: 8px; }
+.rd-req-pax { display: flex; align-items: center; gap: 12px; }
+.rd-req-note { font-size: var(--fs-sm); color: var(--c-ink-2); background: var(--c-surface-2); border-radius: var(--r-md); padding: 10px 12px; }
+@media (prefers-reduced-motion: reduce) { .rd-expiry-bar::after { transition: none; } }

@@ -8,7 +8,7 @@ import { App } from '../app.js';
 import { Bookings, Msgs, Bus } from '../storage.js';
 import { Sim } from '../shared/sim.js';
 import {
-  RIDE_CATEGORIES, QUICK_MSGS_PASSENGER, COMPLIMENTS, nearbyPlaces, generateRoute,
+  RIDE_CATEGORIES, quickReplies, COMPLIMENTS, nearbyPlaces, generateRoute,
   routeLengthKm, pointAtDistance, bearingDeg,
 } from '../data.js';
 import { el, clear, qs } from '../shared/dom.js';
@@ -20,6 +20,10 @@ import { roadRoute, densify } from '../shared/geo.js';
 import { peso, dateTime, statusLabel, statusEl, refreshStatusEl, initials } from '../shared/format.js';
 import { tickValue } from '../shared/motion.js';
 import { avatarEl } from './home.js';
+import { tripStepper } from '../shared/ui-lite.js';
+import { confettiFrom } from '../shared/confetti.js';
+
+const PAY_LABEL = { cash: 'Cash', gcash: 'GCash', maya: 'Maya' };
 
 const state = {
   ticker: null,
@@ -134,7 +138,12 @@ const matchingView = {
         confirmLabel: 'Cancel ride', tone: 'danger', icon: 'circle-x',
       });
       if (!ok) return;
-      Sim.passengerCancel(b.id);
+      if (!Sim.passengerCancel(b.id)) {
+        // a rider accepted (or the trip moved on) while the dialog was open
+        Toast.error('Could not cancel', 'Your ride has already moved on. Opening it now.');
+        App.navigate('trip', { restPath: b.id }, { replace: true });
+        return;
+      }
       Toast.warn('Ride cancelled', 'Your booking was withdrawn.');
       App.navigate('home', {}, { replace: true });
     });
@@ -192,6 +201,13 @@ const tripView = {
     const cancelBtn = el('button', { class: 'btn btn--ghost-danger btn--sm' }, 'Cancel');
     head.appendChild(cancelBtn);
     panel.appendChild(head);
+    const stepper = tripStepper([
+      ['Assigned', ['accepted']],
+      ['Arriving', ['arriving', 'arrived']],
+      ['On the way', ['in_progress']],
+      ['Arrived', ['completed']],
+    ], b.status);
+    panel.appendChild(stepper);
 
     const body = el('div', { class: 'cl-trip-panel-body' });
 
@@ -239,16 +255,17 @@ const tripView = {
     body.appendChild(progress);
 
     /* route summary */
-    body.appendChild(el('div', { class: 'card card--flat card--inset' },
+    body.appendChild(el('div', { class: 'cl-trip-route' },
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
           el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, b.pickup.name))),
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot rl-dot--end' }), el('div', { class: 'grow' },
           el('span', { class: 'rl-label' }, 'Destination'), el('span', { class: 'rl-value clamp-1' }, b.dropoff.name))),
-      el('div', { class: 'row-between', style: 'margin-top:8px;font-size:var(--fs-xs);color:var(--c-ink-3)' },
-        el('span', {}, `${cat.name}`),
-        el('span', { class: 't-num' }, `${b.distanceKm.toFixed(1)} km · ${peso(b.fare.total, { whole: true })}`)),
+      el('dl', { class: 'cl-trip-facts' },
+        el('div', {}, el('dt', {}, 'Ride'), el('dd', {}, cat.name.replace('Lakbay ', ''))),
+        el('div', {}, el('dt', {}, 'Fare'), el('dd', { class: 't-num' }, peso(b.fare.total, { whole: true }))),
+        el('div', {}, el('dt', {}, 'Payment'), el('dd', {}, PAY_LABEL[b.payment && b.payment.method] || 'Cash'))),
     ));
 
     /* chat */
@@ -260,7 +277,8 @@ const tripView = {
 
     /* ---- behaviour ---- */
     cancelBtn.addEventListener('click', async () => {
-      if (b.status === 'in_progress') { Toast.warn('Trip already started', 'You cannot cancel while the trip is in progress. Complete the ride or contact support.'); return; }
+      // check the stored status, not the copy this screen was drawn with
+      if ((Bookings.byId(b.id) || b).status === 'in_progress') { Toast.warn('Trip already started', 'You cannot cancel while the trip is in progress. Complete the ride or contact support.'); return; }
       const { confirmDialog } = await import('../shared/modal.js');
       const ok = await confirmDialog({
         title: 'Cancel this ride?',
@@ -268,7 +286,7 @@ const tripView = {
         confirmLabel: 'Cancel ride', tone: 'danger', icon: 'circle-x',
       });
       if (!ok) return;
-      Sim.passengerCancel(b.id);
+      if (!Sim.passengerCancel(b.id)) { Toast.error('Could not cancel', 'The trip has already started or finished.'); return; }
       Toast.warn('Ride cancelled', 'The rider has been notified.');
       App.navigate('home', {}, { replace: true });
     });
@@ -332,6 +350,7 @@ const tripView = {
         state.map.setMarker('vehicle', pos, 'vehicle', { glide: true });
       }
       refreshStatusEl(stPill, cur.status);
+      stepper.paint(cur.status);
       cancelBtn.style.display = ['searching', 'accepted', 'arriving', 'arrived'].includes(cur.status) ? '' : 'none';
       if (['accepted', 'arriving'].includes(cur.status) && state.map && state.map.route && cur._routePhase !== 'approach') {
         /* route switched to approach (dashed) */
@@ -358,12 +377,7 @@ const tripView = {
 
     /* if already completed and unrated, prompt right away */
     if (b.status === 'completed' && !b.rating) setTimeout(() => offerRating(b), 600);
-    if (b.status === 'completed') {
-      const goto = el('button', { class: 'btn btn--primary btn--block', style: 'margin-top:2px' },
-        el('i', { 'data-lucide': 'receipt-text' }), 'View receipt');
-      goto.addEventListener('click', () => App.navigate('receipt', { restPath: b.id }));
-      body.appendChild(goto);
-    }
+    if (b.status === 'completed') ensureCompletedExtras(b); // receipt CTA (added once)
   },
   unmount() {
     stopTimers();
@@ -418,12 +432,18 @@ function buildChatPane(b) {
   sendBtn.addEventListener('click', () => send(input.value));
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(input.value); });
 
+  // quick replies for the trip's current stage (repainted when it changes)
   const quickRow = el('div', { class: 'chat-quick', role: 'group', 'aria-label': 'Quick replies' });
-  QUICK_MSGS_PASSENGER.forEach((q) => {
-    const chip = el('button', { class: 'chip chip--soft', type: 'button' }, q);
-    chip.addEventListener('click', () => send(q));
-    quickRow.appendChild(chip);
-  });
+  function paintQuick() {
+    clear(quickRow);
+    quickReplies('passenger', Bookings.byId(b.id) || b).forEach((q) => {
+      const chip = el('button', { class: 'chip chip--soft', type: 'button' }, q);
+      chip.addEventListener('click', () => send(q));
+      quickRow.appendChild(chip);
+    });
+  }
+  paintQuick();
+  state.unsubs.push(Bus.subscribe('booking:update', ({ booking }) => { if (booking && booking.id === b.id) paintQuick(); }));
 
   const compose = el('div', { class: 'cl-chat-compose' }, input, sendBtn);
   const pane = el('div', { class: 'cl-chat-pane' },
@@ -446,6 +466,9 @@ function buildChatPane(b) {
 function offerRating(b) {
   const cur = Bookings.byId(b.id);
   if (!cur || cur.status !== 'completed' || cur.rating) return;
+  // one prompt per trip: render and the first tick can both ask for it
+  if (offerRating.openFor === cur.id) return;
+  offerRating.openFor = cur.id;
   let stars = 0;
   const chosen = new Set();
 
@@ -488,6 +511,7 @@ function offerRating(b) {
     title: 'Rate your rider',
     body,
     dismissible: false,
+    onClose: () => { offerRating.openFor = null; },
     actions: [
       { label: 'Later', variant: 'outline', onClick: (api) => api.close(null) },
       {
@@ -498,6 +522,7 @@ function offerRating(b) {
             rating: { stars, compliments: [...chosen], comment: ta.value.trim(), at: Date.now() },
           }, { publish: false });
           NotifThanks(cur, stars);
+          if (stars >= 4) confettiFrom(starRow); // celebrate a good ride; low ratings get a calm thank-you
           api.close(true);
           Toast.success('Thanks for rating!', 'Your feedback helps keep Lakbay safe and friendly.');
           App.refreshHeader();

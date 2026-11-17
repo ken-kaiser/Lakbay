@@ -22,7 +22,7 @@ export function barChart(container, data, { height = 200, valueFmt = peso, showV
     return;
   }
   const W = 720, H = height;
-  const padL = 14, padR = 14, padT = 30, padB = 26;
+  const padL = 62, padR = 14, padT = 30, padB = 26; // left gutter holds the ₱ axis labels, clear of the bars
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const max = Math.max(...data.map((d) => d.value), 1);
@@ -35,7 +35,7 @@ export function barChart(container, data, { height = 200, valueFmt = peso, showV
   for (let i = 1; i <= 3; i++) {
     const y = padT + (innerH * (1 - i / 3));
     svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y, y2: y, class: 'chart-grid-line' }));
-    const lbl = svgEl('text', { x: padL + 2, y: y - 5, class: 'chart-label' });
+    const lbl = svgEl('text', { x: padL - 10, y: y + 4, class: 'chart-label', 'text-anchor': 'end' });
     lbl.textContent = valueFmt(max * (i / 3), { whole: true });
     svg.appendChild(lbl);
   }
@@ -81,9 +81,15 @@ export function barChart(container, data, { height = 200, valueFmt = peso, showV
       class: 'chart-hit', tabindex: '0', role: 'button',
       'aria-label': `${d.label}: ${valueFmt(d.value)}${d.sub ? ', ' + d.sub : ''}`,
     });
-    hit.addEventListener('mouseenter', () => setActive(i));
+    // Mouse: hover shows the value. Touch/pen: a tap toggles it. (A tap also
+    // fires a synthetic hover, which used to select and then instantly
+    // deselect the bar, so hover is limited to real mice.)
+    hit.addEventListener('pointerenter', (ev) => { if (ev.pointerType === 'mouse') setActive(i); });
     hit.addEventListener('focus', () => setActive(i));
-    hit.addEventListener('click', (ev) => { ev.stopPropagation(); setActive(activeIdx === i ? -1 : i); });
+    hit.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      setActive(ev.pointerType === 'mouse' || activeIdx !== i ? i : -1);
+    });
     hit.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setActive(activeIdx === i ? -1 : i); }
       if (ev.key === 'ArrowRight') { ev.preventDefault(); const n = Math.min(data.length - 1, i + 1); setActive(n); hitRects[n].focus(); }
@@ -105,6 +111,7 @@ export function barChart(container, data, { height = 200, valueFmt = peso, showV
   // tap/click outside any bar clears the selection (mobile-friendly)
   const clearOnOutside = () => setActive(-1);
   svg.addEventListener('click', clearOnOutside);
+  svg.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse') setActive(-1); });
 
   container.appendChild(svg);
   container.appendChild(tip);

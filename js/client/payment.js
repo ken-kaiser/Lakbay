@@ -13,6 +13,7 @@ import { Toast } from '../shared/toast.js';
 import { Modal, confirmDialog } from '../shared/modal.js';
 import { peso, dateTime } from '../shared/format.js';
 import { formatPhoneInput, isValidPhone } from '../shared/validation.js';
+import { payMark } from '../shared/ui-lite.js';
 
 const WALLETS = ['gcash', 'maya'];
 
@@ -37,8 +38,7 @@ function openLinkWallet(userId, walletId, existing, onDone) {
   const hint = el('p', { class: 'input-hint' }, `Link the mobile number registered to your ${meta.name} account. It is stored on this device only.`);
   const body = el('div', {},
     el('div', { class: 'row', style: 'gap:10px;margin-bottom:12px' },
-      el('span', { class: 'po-logo', style: `background:${meta.logoBg};color:${meta.logoFg};width:42px;height:42px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center` },
-        el('i', { 'data-lucide': meta.icon })),
+      payMark(meta),
       el('div', {},
         el('div', { class: 't-h3' }, meta.name),
         el('div', { class: 't-xs' }, 'Wallet link'))),
@@ -100,7 +100,7 @@ const walletView = {
       list.forEach((m) => {
         const meta = methodMeta(m.id);
         const row = el('div', { class: 'pay-opt list-item--static' },
-          el('span', { class: 'po-logo', style: `background:${meta.logoBg};color:${meta.logoFg}` }, el('i', { 'data-lucide': meta.icon })),
+          payMark(meta),
           el('span', { class: 'po-body' },
             el('span', { class: 'po-name' }, meta.name,
               m.default ? el('span', { class: 'cl-default-badge' }, 'Default') : null),
@@ -127,7 +127,7 @@ const walletView = {
       WALLETS.filter((w) => !list.some((m) => m.id === w)).forEach((w) => {
         const meta = methodMeta(w);
         const tile = el('button', { class: 'cl-method-tile', type: 'button' },
-          el('span', { class: 'po-logo', style: `background:${meta.logoBg};color:${meta.logoFg}` }, el('i', { 'data-lucide': 'plus' })),
+          payMark(meta),
           `Add ${meta.name}`);
         tile.addEventListener('click', () => {
           openLinkWallet(userId, w, null, paintMethods);

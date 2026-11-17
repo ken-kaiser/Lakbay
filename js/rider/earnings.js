@@ -5,17 +5,16 @@
    ========================================================================== */
 import { App } from '../app.js';
 import { Bookings, Prefs, Notifs } from '../storage.js';
-import { seededEarnings } from '../data.js';
+import { seededEarnings, riderShare } from '../data.js';
 import { el, clear, qs } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Toast } from '../shared/toast.js';
 import { Modal, confirmDialog } from '../shared/modal.js';
 import { barChart } from '../shared/charts.js';
 import { peso, dateShort, dateTime } from '../shared/format.js';
-import { tickValue } from '../shared/motion.js';
+import { rollText } from '../shared/motion.js';
 
 /* Timestamp of the last cash-out — lets the re-rendered balance tick once */
-let lastCashOutAt = 0;
 
 /* ---------- aggregation helpers ---------- */
 function midnight(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
@@ -32,7 +31,8 @@ function earningsFor(userId) {
   const daily = new Map();
   const add = (key, gross, trips, km) => {
     const cur = daily.get(key) || { gross: 0, commission: 0, net: 0, trips: 0, distanceKm: 0, date: key };
-    cur.gross += gross; cur.commission += Math.round(gross * 0.2); cur.net += gross - Math.round(gross * 0.2);
+    const share = riderShare(gross);
+    cur.gross += gross; cur.commission += share.commission; cur.net += share.net;
     cur.trips += trips; cur.distanceKm += km;
     daily.set(key, cur);
   };
@@ -73,14 +73,17 @@ const earningsView = {
     const wk = sumRange(daily, dayKey(Date.now() - 6 * 86400000), todayKey());
     const mo = sumRange(daily, dayKey(Date.now() - 29 * 86400000), todayKey());
     const td = sumRange(daily, todayKey(), todayKey());
-    const withdrawn = withdrawalsOf(userId).reduce((s, w) => s + w.amount, 0);
-    const balance = mo.net - withdrawn;
+    // Balance = everything ever earned − everything ever withdrawn. (It used
+    // the last 30 days of earnings against lifetime withdrawals, so the
+    // balance drifted down as trips aged out of the window.)
+    const availableNow = () => sumRange(earningsFor(userId).daily, null, null).net
+      - withdrawalsOf(userId).reduce((s, w) => s + w.amount, 0);
+    const balance = availableNow();
 
     const wrap = el('div', { class: 'rd-stack' });
 
     /* period summary — one divided metrics card (typography, not boxes) */
     const metricsCard = el('div', { class: 'card earn-metrics' });
-    let balanceVal = null;
     [
       ['today', 'Today', peso(td.net, { whole: true }), `${td.trips} trip${td.trips === 1 ? '' : 's'}`],
       ['week', 'This week', peso(wk.net, { whole: true }), `${wk.trips} trips`],
@@ -89,13 +92,12 @@ const earningsView = {
     ].forEach(([id, label, val, sub, emphasize]) => {
       const metric = el('div', { class: `earn-metric${emphasize ? ' earn-metric--em' : ''}` },
         el('span', { class: 't-overline' }, label),
-        el('span', { class: 'earn-metric-value t-num' }, val),
+        el('span', { class: 'earn-metric-value t-num' }),
         sub ? el('span', { class: 'earn-metric-sub' }, sub) : null);
-      if (id === 'balance') balanceVal = metric.querySelector('.earn-metric-value');
+      rollText(metric.querySelector('.earn-metric-value'), val); // digits spin up into place
       metricsCard.appendChild(metric);
     });
     wrap.appendChild(metricsCard);
-    if (balanceVal && Date.now() - lastCashOutAt < 2500) tickValue(balanceVal);
 
     /* chart */
     const chartCard = el('div', { class: 'card card-pad' });
@@ -163,13 +165,14 @@ const earningsView = {
     coBtn.addEventListener('click', () => {
       const amt = Math.round(Number(amount.value) || 0);
       if (amt < 200) { Toast.error('Too small', 'Minimum cash-out is ₱200.'); return; }
-      if (amt > balance) { Toast.error('Insufficient balance', `You can cash out up to ${peso(Math.max(0, balance), { whole: true })}.`); return; }
+      // re-read the balance now: another tab may have cashed out since this page was drawn
+      const available = availableNow();
+      if (amt > available) { Toast.error('Insufficient balance', `You can cash out up to ${peso(Math.max(0, available), { whole: true })}.`); return; }
       const list = withdrawalsOf(userId);
       list.unshift({ id: 'w_' + Date.now().toString(36), amount: amt, method: methodSel.value, at: Date.now(), status: 'processing' });
       Prefs.set(userId, 'withdrawals', list);
       Notifs.push({ userId, role: 'rider', title: 'Cash-out requested', body: `${peso(amt, { whole: true })} via ${methodSel.value === 'gcash' ? 'GCash' : 'bank transfer'}.`, icon: 'banknote', tone: 'primary' });
       Toast.success('Cash-out requested', `${peso(amt, { whole: true })} is on the way.`);
-      lastCashOutAt = Date.now();
       App.navigate('earnings', {}, { replace: true });
     });
 

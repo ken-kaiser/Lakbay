@@ -19,9 +19,10 @@ import { Modal } from '../shared/modal.js';
 import { createMap } from '../shared/map.js';
 import { locateUser, searchPlacesOnline, getLastLocation } from '../shared/geo.js';
 import { peso } from '../shared/format.js';
-import { tickValue } from '../shared/motion.js';
+import { rollText } from '../shared/motion.js';
 import { formatDistanceKm } from '../data.js';
 import { SAMPLE_LOC, currentLoc } from './home.js';
+import { payMark } from '../shared/ui-lite.js';
 
 const DRAFT_KEY = 'lakbay:draft';
 
@@ -69,7 +70,7 @@ function placeIcon(place) {
 /* ---------- autocomplete list builder ---------- */
 /* Suggestions are ranked around `origin` (the user's real location).
    Search uses the online OpenStreetMap index (any PH city), falling back to
-   the built-in Metro Manila list only when it's offline. Built-in places are
+   the built-in Metro Cebu list only when it's offline. Built-in places are
    only offered as "nearby" when they're actually within 25 km. */
 let suggestToken = 0;
 async function buildSuggestionList({ userId, query, container, onPick, origin }) {
@@ -91,6 +92,9 @@ async function buildSuggestionList({ userId, query, container, onPick, origin })
     }
     const online = await searchPlacesOnline(q, here, 8);
     if (token !== suggestToken) return; // a newer keystroke superseded this one
+    // Don't swap the rows out from under a finger that is mid-tap: late results
+    // used to replace the row being pressed, so the tap selected nothing.
+    if (container.dataset.pressing === '1') return;
     results = online.length ? [...local, ...online].slice(0, 8) : searchPlaces(q, 8).filter((p) => haversineKm(here, p) <= 25 || !getLastLocation());
   }
   clear(container);
@@ -272,6 +276,7 @@ const searchView = {
             panel.style.display = 'none';
             f.block.classList.remove('focused');
             refreshFindBtn();
+            f.input.blur(); // close the phone keyboard so "Find rides" is in view
           },
         });
         panel.style.display = 'flex';
@@ -281,7 +286,23 @@ const searchView = {
       let typeTimer = null;
       f.input.addEventListener('input', () => { clearTimeout(typeTimer); typeTimer = setTimeout(showPanel, 250); });
       f.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const first = panel.querySelector('.cl-ac-item'); if (first) first.click(); } });
-      f.block.addEventListener('focusout', () => { hideTimer = setTimeout(() => { panel.style.display = 'none'; f.block.classList.remove('focused'); }, 180); });
+      // Picking a suggestion must not take focus away from the field. A tap or
+      // press used to blur it first, which hid the list 180ms later, and on
+      // phones also closed the keyboard and shifted the page, so taps landed
+      // on nothing. preventDefault on mousedown keeps focus (and the list) in
+      // place; it doesn't block scrolling or the click itself.
+      panel.addEventListener('mousedown', (e) => e.preventDefault());
+      panel.addEventListener('pointerdown', () => { panel.dataset.pressing = '1'; });
+      const released = () => setTimeout(() => { delete panel.dataset.pressing; }, 0);
+      panel.addEventListener('pointerup', released);
+      panel.addEventListener('pointercancel', released);
+      const hideSoon = () => { hideTimer = setTimeout(() => { panel.style.display = 'none'; f.block.classList.remove('focused'); }, 180); };
+      // Hide only when focus leaves both the field and its list, so keyboard
+      // users can Tab from the field into the suggestions.
+      const leaving = (e) => { const to = e.relatedTarget; if (!(to && (f.block.contains(to) || panel.contains(to)))) hideSoon(); };
+      f.block.addEventListener('focusout', leaving);
+      panel.addEventListener('focusout', leaving);
+      panel.addEventListener('focusin', () => clearTimeout(hideTimer));
       f.clearBtn.addEventListener('click', () => {
         f.input.value = ''; setPoint(null); panel.style.display = 'none'; refreshFindBtn(); f.input.focus();
       });
@@ -327,11 +348,41 @@ const searchView = {
   },
 };
 
+/* Studio photography per ride class — the same art direction as the
+   landing page, so the vehicle you pick looks like the one you saw. */
+export const RIDE_THUMB = {
+  moto: { src: 'assets/promos/campaign-scooter.webp', pos: '62% 55%' },
+  car: { src: 'assets/promos/campaign-sedan.webp', pos: '58% 62%' },
+  premium: { src: 'assets/illustrations/hero.png', pos: '62% 58%' },
+  xl: { src: 'assets/promos/campaign-van.webp', pos: '56% 62%' },
+};
+export function rideThumb(cat, cls = 'ro-img') {
+  const art = RIDE_THUMB[cat.id] || { src: cat.img, pos: '50% 50%' };
+  return el('span', { class: cls },
+    el('img', { src: art.src, alt: '', loading: 'lazy', decoding: 'async', style: `object-position:${art.pos}`, onerror: (e) => { e.target.src = cat.img; } }));
+}
+
+/* Trip summary used at the top of the ride and confirm panels */
+function tripSummary(from, to, km, mins, onEdit) {
+  const box = el('div', { class: 'cl-trip-sum' },
+    el('div', { class: 'cl-trip-stops' },
+      el('div', { class: 'cl-ts-row' }, el('span', { class: 'cl-rr-dot' }), el('span', { class: 'clamp-1' }, from.name)),
+      el('div', { class: 'cl-ts-row' }, el('span', { class: 'cl-rr-dot cl-rr-dot--end' }), el('span', { class: 'clamp-1' }, to.name))),
+    el('div', { class: 'cl-trip-meta t-num' }, `${km} km · about ${mins} min`));
+  if (onEdit) {
+    const edit = el('button', { class: 'cl-link-btn', type: 'button' }, 'Change');
+    edit.addEventListener('click', onEdit);
+    box.appendChild(edit);
+  }
+  return box;
+}
+
 /* ==========================================================
    View: rides (vehicle selection + booking details)
    ========================================================== */
 const ridesView = {
   id: 'rides',
+  _map: null,
   render(root, { query }) {
     const userId = App.user.id;
     const from = decodePoint(query.from) || loadDraft().pickup;
@@ -349,92 +400,76 @@ const ridesView = {
     let paymentMethod = draft.paymentMethod || PaymentRepo.defaultMethod(userId);
     let instructions = draft.instructions || '';
 
-    const wrap = el('div', { class: 'cl-rides-wrap' });
+    /* map left (desktop) / top (phone), one flat panel beside it */
+    const layout = el('div', { class: 'cl-book' });
+    const mapBox = el('div', { class: 'map-box cl-book-map' });
+    const panel = el('div', { class: 'cl-book-panel' });
+    layout.append(mapBox, panel);
 
-    /* route preview */
-    const preview = el('div', { class: 'card cl-route-preview' });
-    preview.appendChild(el('div', { class: 'route-line-item' },
-      el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
-        el('span', { class: 'rl-label' }, 'Pickup'),
-        el('span', { class: 'rl-value' }, from.name),
-        el('span', { class: 'rl-sub' }, from.address))));
-    preview.appendChild(el('div', { class: 'route-line-item' },
-      el('span', { class: 'rl-dot rl-dot--end' }), el('div', { class: 'grow' },
-        el('span', { class: 'rl-label' }, 'Drop-off'),
-        el('span', { class: 'rl-value' }, to.name),
-        el('span', { class: 'rl-sub' }, to.address))));
-    const mapBox = el('div', { class: 'map-box cl-map-sm', style: 'margin-top:12px' });
-    preview.appendChild(mapBox);
-    wrap.appendChild(preview);
+    panel.appendChild(tripSummary(from, to, km, mins, () => App.navigate('search')));
 
     /* category list */
-    const listCard = el('div', { class: 'card card-pad' });
-    listCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:10px' }, 'Ride options'));
-    const rideList = el('div', { class: 'cl-ride-list', role: 'radiogroup', 'aria-label': 'Ride category' });
-    listCard.appendChild(rideList);
-    wrap.appendChild(listCard);
+    const rideSec = el('section', { class: 'cl-book-sec', 'aria-labelledby': 'cl-rides-h' },
+      el('h2', { class: 'cl-book-h', id: 'cl-rides-h' }, 'Choose a ride'));
+    const rideList = el('div', { class: 'cl-ride-list', role: 'radiogroup', 'aria-labelledby': 'cl-rides-h' });
+    rideSec.appendChild(rideList);
+    panel.appendChild(rideSec);
 
-    /* details card (rebuilt on category change) */
-    const detailsCard = el('div', { class: 'card cl-ride-details' });
-    wrap.appendChild(detailsCard);
+    /* details (rebuilt on category change) */
+    const detailsBox = el('div', { class: 'cl-book-details' });
+    panel.appendChild(detailsBox);
 
     /* sticky foot */
     const foot = el('div', { class: 'cl-sticky-foot' });
-    const totalLabel = el('span', { class: 'cl-total-label' }, 'Estimated total');
     const totalValue = el('span', { class: 'cl-total-value t-num' }, '—');
-    const footTotal = el('div', { class: 'cl-total' }, totalLabel, totalValue);
+    const footTotal = el('div', { class: 'cl-total' }, el('span', { class: 'cl-total-label' }, 'Estimated total'), totalValue);
     const nextBtn = el('button', { class: 'btn btn--primary btn--lg' }, 'Review booking', el('i', { 'data-lucide': 'arrow-right' }));
     foot.append(footTotal, nextBtn);
-    wrap.appendChild(foot);
+    panel.appendChild(foot);
 
-    root.appendChild(wrap);
+    root.appendChild(layout);
 
     /* ---- rendering helpers ---- */
-    let mapApi = null;
+    const view = this;
     function paintMap() {
       setTimeout(() => {
         if (!mapBox.isConnected) return;
-        if (mapApi) { mapApi.destroy(); mapApi = null; }
-        mapApi = createMap(mapBox, { center: [from.lat, from.lng], zoom: 13 });
-        if (!mapApi) return;
-        mapApi.setMarker('pickup', from, 'pickup', { label: 'Pickup' });
-        mapApi.setMarker('drop', to, 'drop', { label: 'Drop-off' });
-        mapApi.drawRoute(route);
-        mapApi.fitRoute(route, { pad: [30, 30], maxZoom: 15 });
+        if (view._map) { view._map.destroy(); view._map = null; }
+        view._map = createMap(mapBox, { center: [from.lat, from.lng], zoom: 13 });
+        if (!view._map) return;
+        view._map.setMarker('pickup', from, 'pickup', { label: 'Pickup' });
+        view._map.setMarker('drop', to, 'drop', { label: 'Drop-off' });
+        view._map.drawRoute(route);
+        view._map.fitRoute(route, { pad: [40, 40], maxZoom: 15 });
       }, 60);
     }
 
     function currentFare() {
-      const base = estimateFare(selectedCat, km, mins);
-      return applyPromo(base, promo);
+      return applyPromo(estimateFare(selectedCat, km, mins), promo);
     }
 
     function paintCategories() {
       clear(rideList);
       RIDE_CATEGORIES.forEach((cat) => {
         const fare = estimateFare(cat.id, km, mins);
-        const etaText = `${cat.etaMin[0]}–${cat.etaMin[1]} min away`;
+        const on = cat.id === selectedCat;
         const row = el('button', {
-          class: `ride-opt${cat.id === selectedCat ? ' selected' : ''}`, type: 'button',
-          role: 'radio', 'aria-checked': String(cat.id === selectedCat),
+          class: `ride-opt${on ? ' selected' : ''}`, type: 'button',
+          role: 'radio', 'aria-checked': String(on),
         },
-          el('span', { class: 'ro-img' },
-            el('img', { src: cat.img, alt: `${cat.name} vehicle illustration`, loading: 'lazy' })),
+          rideThumb(cat),
           el('span', { class: 'ro-body' },
-            el('span', { class: 'ro-name' }, cat.name,
-              el('span', { class: 'cl-cap-chip' }, el('i', { 'data-lucide': 'users-round' }), `${cat.capacity} pax`)),
-            el('span', { class: 'ro-desc' }, cat.desc),
-            el('span', { class: 'ro-meta' },
-              el('span', {}, el('i', { 'data-lucide': 'timer' }), etaText),
-              el('span', {}, el('i', { 'data-lucide': 'clock' }), `~${mins} min trip`),
-              el('span', {}, el('i', { 'data-lucide': 'briefcase' }), cat.luggage))),
-          el('span', { class: 'ro-price' }, peso(fare.total, { whole: true }),
-            el('span', { class: 'ro-price-sub' }, 'estimate')),
+            el('span', { class: 'ro-name' }, cat.name.replace('Lakbay ', '')),
+            el('span', { class: 'ro-meta t-num' }, `${cat.capacity} seat${cat.capacity > 1 ? 's' : ''} · ${cat.etaMin[0]}–${cat.etaMin[1]} min away`),
+            on ? el('span', { class: 'ro-desc' }, `${cat.desc} ${cat.luggage}.`) : null),
+          el('span', { class: 'ro-price t-num' }, peso(fare.total, { whole: true })),
         );
         row.addEventListener('click', () => {
           if (selectedCat === cat.id) return;
           selectedCat = cat.id; saveDraft({ category: cat.id });
           paintCategories(); paintDetails(); paintFoot();
+          const sel = rideList.querySelector('.selected');
+          if (sel) sel.focus({ preventScroll: true });
         });
         rideList.appendChild(row);
       });
@@ -442,13 +477,13 @@ const ridesView = {
     }
 
     function paintDetails() {
-      clear(detailsCard);
+      clear(detailsBox);
       const cat = RIDE_CATEGORIES.find((c) => c.id === selectedCat);
 
       /* payment method */
-      const payBlock = el('div', { class: 'cl-details-block' });
-      payBlock.appendChild(el('div', { class: 'cl-details-label' }, el('i', { 'data-lucide': 'wallet' }), 'Payment method'));
-      const payList = el('div', { class: 'cl-pay-list', role: 'radiogroup', 'aria-label': 'Payment method' });
+      const paySec = el('section', { class: 'cl-book-sec', 'aria-labelledby': 'cl-pay-h' },
+        el('h3', { class: 'cl-book-h', id: 'cl-pay-h' }, 'Pay with'));
+      const payList = el('div', { class: 'cl-pay-list', role: 'radiogroup', 'aria-labelledby': 'cl-pay-h' });
       const defaults = PaymentRepo.list(userId);
       PAYMENT_METHODS.forEach((m) => {
         const isDefault = defaults.some((d) => d.id === m.id && d.default);
@@ -456,78 +491,69 @@ const ridesView = {
           class: `pay-opt${paymentMethod === m.id ? ' selected' : ''}`, type: 'button', role: 'radio',
           'aria-checked': String(paymentMethod === m.id),
         },
-          el('span', { class: 'po-logo', style: `background:${m.logoBg};color:${m.logoFg}` },
-            el('i', { 'data-lucide': m.icon })),
+          payMark(m),
           el('span', { class: 'po-body' },
             el('span', { class: 'po-name' }, m.name, isDefault ? el('span', { class: 'cl-default-badge' }, 'Default') : null),
             el('span', { class: 'po-sub' }, m.sub)),
-          el('span', { class: 'po-check' }, el('i', { 'data-lucide': 'circle-check-big' })),
+          el('span', { class: 'po-check' }, el('i', { 'data-lucide': 'check' })),
         );
         opt.addEventListener('click', () => { paymentMethod = m.id; saveDraft({ paymentMethod: m.id }); paintDetails(); });
         payList.appendChild(opt);
       });
-      payBlock.appendChild(payList);
-      detailsCard.appendChild(payBlock);
+      paySec.appendChild(payList);
+      detailsBox.appendChild(paySec);
 
       /* promo */
-      const promoBlock = el('div', { class: 'cl-details-block' });
-      promoBlock.appendChild(el('div', { class: 'cl-details-label' }, el('i', { 'data-lucide': 'ticket-percent' }), 'Promo code'));
+      const promoSec = el('section', { class: 'cl-book-sec', 'aria-labelledby': 'cl-promo-h2' },
+        el('h3', { class: 'cl-book-h', id: 'cl-promo-h2' }, 'Promo code'));
       if (promo) {
         const applied = el('div', { class: 'cl-promo-applied' },
           el('span', {}, el('i', { 'data-lucide': 'badge-check' }), `${promo.code} applied — you save ${peso(currentFare().discount, { whole: true })}`),
-          el('button', { class: 'icon-btn', 'aria-label': 'Remove promo code' }, el('i', { 'data-lucide': 'trash-2' })));
+          el('button', { class: 'icon-btn', 'aria-label': 'Remove promo code' }, el('i', { 'data-lucide': 'x' })));
         applied.querySelector('button').addEventListener('click', () => {
           promo = null; saveDraft({ promoCode: null }); paintDetails(); paintFoot();
         });
-        promoBlock.appendChild(applied);
+        promoSec.appendChild(applied);
       } else {
         const row = el('div', { class: 'cl-promo-row' });
-        const input = el('input', { class: 'input', type: 'text', placeholder: 'e.g. LAKBAY50', 'aria-label': 'Promo code', maxlength: '16' });
+        const input = el('input', { class: 'input', type: 'text', placeholder: 'e.g. LAKBAY50', 'aria-labelledby': 'cl-promo-h2', maxlength: '16', autocapitalize: 'characters' });
         row.appendChild(el('div', { class: 'input-wrap' }, input));
-        const applyBtn = el('button', { class: 'btn btn--soft' }, 'Apply');
+        const applyBtn = el('button', { class: 'btn btn--outline' }, 'Apply');
         row.appendChild(applyBtn);
-        const err = el('div', { class: 'cl-inline-error', style: 'display:none' }, el('i', { 'data-lucide': 'circle-alert' }), el('span', {}));
-        promoBlock.append(row, err);
+        const err = el('div', { class: 'cl-inline-error', style: 'display:none', role: 'alert' }, el('i', { 'data-lucide': 'circle-alert' }), el('span', {}));
+        promoSec.append(row, err);
+        const showErr = (msg) => { err.style.display = 'flex'; err.querySelector('span').textContent = msg; input.classList.add('input--error'); };
+        input.addEventListener('input', () => { err.style.display = 'none'; input.classList.remove('input--error'); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyBtn.click(); } });
         applyBtn.addEventListener('click', () => {
           const code = input.value.trim();
-          if (!code) { err.style.display = 'flex'; err.querySelector('span').textContent = 'Enter a promo code first.'; return; }
+          if (!code) { showErr('Enter a promo code first.'); return; }
           const p = getPromo(code);
           const fare = estimateFare(selectedCat, km, mins);
-          if (!p) { err.style.display = 'flex'; err.querySelector('span').textContent = `“${code}” is not a valid code. Try LAKBAY50.`; return; }
-          if (fare.subtotal < p.minFare) {
-            err.style.display = 'flex';
-            err.querySelector('span').textContent = `${p.code} needs a minimum fare of ${peso(p.minFare, { whole: true })}.`;
-            return;
-          }
-          if (p.category && p.category !== selectedCat) {
-            err.style.display = 'flex';
-            err.querySelector('span').textContent = `${p.code} only applies to ${p.category === 'moto' ? 'Lakbay Moto' : 'this'} rides.`;
-            return;
-          }
+          if (!p) { showErr(`“${code}” is not a valid code. Try LAKBAY50.`); return; }
+          if (fare.subtotal < p.minFare) { showErr(`${p.code} needs a minimum fare of ${peso(p.minFare, { whole: true })}.`); return; }
+          if (p.category && p.category !== selectedCat) { showErr(`${p.code} only applies to ${p.category === 'moto' ? 'Lakbay Moto' : 'this'} rides.`); return; }
           promo = p; saveDraft({ promoCode: p.code });
           Toast.success('Promo applied', `${p.code} — ${p.label}`);
           paintDetails(); paintFoot();
         });
       }
-      detailsCard.appendChild(promoBlock);
+      detailsBox.appendChild(promoSec);
 
       /* instructions */
-      const insBlock = el('div', { class: 'cl-details-block' });
-      insBlock.appendChild(el('div', { class: 'cl-details-label' }, el('i', { 'data-lucide': 'message-square-text' }), 'Pickup instructions'));
-      const ta = el('textarea', { class: 'textarea', rows: '2', maxlength: '140', placeholder: 'e.g. Wait at the guard house, Gate 2, beside the coffee shop' });
+      const insSec = el('section', { class: 'cl-book-sec' },
+        el('label', { class: 'cl-book-h', for: 'cl-ins' }, 'Note for your rider'));
+      const ta = el('textarea', { class: 'textarea', id: 'cl-ins', rows: '2', maxlength: '140', placeholder: 'e.g. Gate 2, beside the coffee shop' });
       ta.value = instructions;
       ta.addEventListener('input', () => { instructions = ta.value.slice(0, 140); saveDraft({ instructions }); });
-      insBlock.appendChild(ta);
-      insBlock.appendChild(el('p', { class: 'input-hint' }, 'Optional note for your rider. Keep it short and clear.'));
-      detailsCard.appendChild(insBlock);
+      insSec.append(ta, el('p', { class: 'input-hint' }, 'Optional. Keep it short and clear.'));
+      detailsBox.appendChild(insSec);
 
       /* fare breakdown */
-      const fareBlock = el('div', { class: 'cl-details-block' });
-      fareBlock.appendChild(el('div', { class: 'cl-details-label' }, el('i', { 'data-lucide': 'receipt-text' }), 'Fare breakdown'));
       const f = currentFare();
       const lines = el('div', { class: 'fare-lines' });
       [
-        { label: `Base fare (${cat.name})`, value: peso(f.base) },
+        { label: `Base fare · ${cat.name.replace('Lakbay ', '')}`, value: peso(f.base) },
         { label: `Distance · ${f.km} km`, value: peso(f.distance) },
         { label: `Time · ${f.mins} min`, value: peso(f.duration) },
         { label: 'Platform fee', value: peso(f.platformFee) },
@@ -535,21 +561,20 @@ const ridesView = {
         el('span', { class: 'fl-label' }, r.label), el('span', { class: 'fl-val t-num' }, r.value))));
       if (f.discount > 0) {
         lines.appendChild(el('div', { class: 'fare-line fare-line--discount' },
-          el('span', { class: 'fl-label' }, 'Promo discount'), el('span', { class: 'fl-val t-num' }, '−' + peso(f.discount))));
+          el('span', { class: 'fl-label' }, `Promo ${f.promoCode}`), el('span', { class: 'fl-val t-num' }, '−' + peso(f.discount))));
       }
       lines.appendChild(el('div', { class: 'fare-line fare-line--total' },
         el('span', { class: 'fl-label' }, 'Total'), el('span', { class: 'fl-val t-num' }, peso(f.total))));
-      fareBlock.appendChild(lines);
-      fareBlock.appendChild(el('p', { class: 'input-hint' }, 'Final fare may adjust slightly with actual route and time.'));
-      detailsCard.appendChild(fareBlock);
+      detailsBox.appendChild(el('section', { class: 'cl-book-sec', 'aria-labelledby': 'cl-fare-h' },
+        el('h3', { class: 'cl-book-h', id: 'cl-fare-h' }, 'Fare breakdown'),
+        lines,
+        el('p', { class: 'input-hint' }, 'The final fare may adjust slightly with the actual route and time.')));
 
-      Icons.refresh(detailsCard);
+      Icons.refresh(detailsBox);
     }
 
     function paintFoot() {
-      const f = currentFare();
-      totalValue.textContent = peso(f.total, { whole: true });
-      tickValue(totalValue); // brief emphasis whenever the estimated total changes
+      rollText(totalValue, peso(currentFare().total, { whole: true })); // digits spin to the new total
     }
 
     nextBtn.addEventListener('click', () => {
@@ -561,8 +586,9 @@ const ridesView = {
     paintDetails();
     paintFoot();
     paintMap();
+    Icons.refresh(root);
   },
-  unmount() { /* map destroyed with view */ if (typeof this._map !== 'undefined' && this._map) this._map.destroy(); },
+  unmount() { if (this._map) { this._map.destroy(); this._map = null; } },
 };
 
 /* ==========================================================
@@ -580,43 +606,37 @@ const confirmView = {
     const route = generateRoute(pickup, dropoff);
     const km = Math.round(routeLengthKm(route) * 10) / 10;
     const mins = estimateDurationMin(km);
-    let fare = applyPromo(estimateFare(cat.id, km, mins), promo);
+    const fare = applyPromo(estimateFare(cat.id, km, mins), promo);
     const method = PAYMENT_METHODS.find((m) => m.id === (draft.paymentMethod || 'cash')) || PAYMENT_METHODS[0];
 
     App.setHeader('Review your booking', 'Confirm the details below');
 
-    const wrap = el('div', { class: 'cl-rides-wrap', style: 'max-width:640px' });
-    const card = el('div', { class: 'card cl-confirm-card' });
+    const wrap = el('div', { class: 'cl-confirm' });
+    const card = el('div', { class: 'cl-confirm-card' });
+
+    /* the ride, photo-led */
+    card.appendChild(el('div', { class: 'cl-confirm-hero' },
+      rideThumb(cat, 'cl-confirm-img'),
+      el('div', { class: 'cl-confirm-hero-txt' },
+        el('span', { class: 'cl-book-h' }, 'Your ride'),
+        el('strong', {}, cat.name),
+        el('span', { class: 't-small' }, `${cat.capacity} seat${cat.capacity > 1 ? 's' : ''} · ${cat.luggage} · rider ${cat.etaMin[0]}–${cat.etaMin[1]} min away`))));
 
     /* route */
-    card.appendChild(el('div', { class: 'cl-confirm-block' },
-      el('span', { class: 'cl-confirm-label' }, el('i', { 'data-lucide': 'route' }), 'Trip'),
+    card.appendChild(el('section', { class: 'cl-book-sec' },
+      el('h2', { class: 'cl-book-h' }, 'Trip'),
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
-          el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value' }, pickup.name),
-          pickup.instructions ? el('span', { class: 'rl-sub' }, 'Note: ' + pickup.instructions) : null,
-          el('span', { class: 'rl-sub' }, pickup.address))),
+          el('span', { class: 'rl-value' }, pickup.name),
+          el('span', { class: 'rl-sub' }, pickup.address),
+          draft.instructions ? el('span', { class: 'rl-sub' }, 'Note: ' + draft.instructions) : null)),
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot rl-dot--end' }), el('div', { class: 'grow' },
-          el('span', { class: 'rl-label' }, 'Destination'), el('span', { class: 'rl-value' }, dropoff.name),
+          el('span', { class: 'rl-value' }, dropoff.name),
           el('span', { class: 'rl-sub' }, dropoff.address))),
-    ));
+      el('p', { class: 't-small t-num' }, `${km} km · about ${mins} min`)));
 
-    /* category + eta */
-    const catRow = el('div', { class: 'cl-cat-row' },
-      el('span', { class: 'ro-img' }, el('img', { src: cat.img, alt: `${cat.name} vehicle illustration` })),
-      el('div', { class: 'grow' },
-        el('div', { class: 't-h3' }, cat.name),
-        el('div', { class: 't-small' }, `${cat.capacity} passenger seat${cat.capacity > 1 ? 's' : ''} · ${cat.luggage}`)));
-    const etaRow = el('div', { class: 'cl-eta-row' },
-      el('i', { 'data-lucide': 'timer' }),
-      el('span', {}, `Estimated trip: ${km} km · about ${mins} min. First available ${cat.vehicle} is ${cat.etaMin[0]}–${cat.etaMin[1]} min from pickup.`));
-    card.append(
-      el('div', { class: 'cl-confirm-block' }, el('span', { class: 'cl-confirm-label' }, el('i', { 'data-lucide': 'car-front' }), 'Ride category'), catRow),
-      etaRow,
-    );
-
-    /* payment + fare summary */
+    /* payment + fare */
     const fareLines = el('div', { class: 'fare-lines' });
     [
       { label: 'Base fare', value: peso(fare.base) },
@@ -630,42 +650,42 @@ const confirmView = {
     fareLines.appendChild(el('div', { class: 'fare-line fare-line--total' },
       el('span', { class: 'fl-label' }, 'Total'), el('span', { class: 'fl-val t-num' }, peso(fare.total))));
 
-    card.appendChild(el('div', { class: 'cl-confirm-block' },
-      el('span', { class: 'cl-confirm-label' }, el('i', { 'data-lucide': 'wallet' }), 'Payment'),
-      el('div', { class: 'pay-opt selected list-item--static' },
-        el('span', { class: 'po-logo', style: `background:${method.logoBg};color:${method.logoFg}` }, el('i', { 'data-lucide': method.icon })),
+    card.appendChild(el('section', { class: 'cl-book-sec' },
+      el('h2', { class: 'cl-book-h' }, 'Payment'),
+      el('div', { class: 'cl-pay-line' },
+        payMark(method),
         el('span', { class: 'po-body' },
           el('span', { class: 'po-name' }, method.name),
           el('span', { class: 'po-sub' }, method.sub))),
-      fareLines,
-    ));
-
-    if (draft.instructions) {
-      card.appendChild(el('div', { class: 'cl-confirm-block' },
-        el('span', { class: 'cl-confirm-label' }, el('i', { 'data-lucide': 'message-square-text' }), 'Instructions to rider'),
-        el('p', { class: 't-body' }, draft.instructions)));
-    }
+      fareLines));
 
     wrap.appendChild(card);
 
-    /* actions */
+    /* actions — one primary, two quiet */
     const actions = el('div', { class: 'cl-confirm-actions' });
-    const cancelBtn = el('button', { class: 'btn btn--outline btn--lg' }, 'Cancel');
-    const editBtn = el('button', { class: 'btn btn--soft btn--lg' }, el('i', { 'data-lucide': 'pencil' }), 'Edit booking');
-    const confirmBtn = el('button', { class: 'btn btn--primary btn--lg' }, el('i', { 'data-lucide': 'check' }), 'Confirm booking');
-    actions.append(cancelBtn, editBtn, confirmBtn);
+    const confirmBtn = el('button', { class: 'btn btn--primary btn--lg' }, 'Confirm booking', el('i', { 'data-lucide': 'arrow-right' }));
+    const editBtn = el('button', { class: 'btn btn--outline btn--lg' }, 'Edit');
+    const cancelBtn = el('button', { class: 'btn btn--ghost-danger btn--lg' }, 'Cancel');
+    actions.append(confirmBtn, editBtn, cancelBtn);
     wrap.appendChild(actions);
 
     root.appendChild(wrap);
 
     cancelBtn.addEventListener('click', () => { clearDraft(); App.navigate('home', {}, { replace: true }); });
     editBtn.addEventListener('click', () => App.navigate('rides', {
-      query: { from: encodePoint(pickup), to: encodePoint(dropoff) }, // eslint-disable-line no-use-before-define
+      query: { from: encodePoint(pickup), to: encodePoint(dropoff) },
     }));
 
     let submitting = false;
     confirmBtn.addEventListener('click', () => {
       if (submitting) return; // prevent duplicate submissions
+      // one live ride per passenger (another tab may already have booked)
+      const live = Bookings.activeFor(userId, 'passenger').find((x) => x.status !== 'scheduled');
+      if (live) {
+        Toast.warn('You already have a ride', 'Finish or cancel your current ride before booking another.');
+        App.navigate('trip', { restPath: live.id }, { replace: true });
+        return;
+      }
       submitting = true;
       confirmBtn.disabled = true;
       confirmBtn.classList.add('btn--loading');

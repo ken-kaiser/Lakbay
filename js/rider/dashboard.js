@@ -16,7 +16,7 @@ import { createMap } from '../shared/map.js';
 import { locateUser, getLastLocation, reverseGeocode } from '../shared/geo.js';
 import { peso, timeAgo, firstNameOf } from '../shared/format.js';
 import { avatarElLite } from '../shared/ui-lite.js';
-import { tickValue } from '../shared/motion.js';
+import { rollText } from '../shared/motion.js';
 
 const state = { map: null, ticker: null, onlineAt: null, area: '' };
 
@@ -41,34 +41,39 @@ const dashboardView = {
     state.onlineAt = online ? (Prefs.get(userId, 'onlineAt', Date.now())) : null;
     RequestManager.setOnline(online && isVerified());
 
-    const toggleCard = el('div', { class: 'card rd-online-card' });
+    /* status console: the working state, the switch and today's numbers in
+       one midnight panel — the first thing a rider reads */
+    const toggleCard = el('section', { class: 'rd-console', 'aria-label': 'Working status' });
     const sw = el('button', {
       class: `switch switch--lg${online && isVerified() ? ' on' : ''}`, role: 'switch',
       'aria-checked': String(online && isVerified()), 'aria-label': 'Go online or offline',
     }, el('span', { class: 'knob' }));
     const statusText = el('div', { class: 'grow' });
-    const toggleRow = el('div', { class: 'row', style: 'gap:14px' }, statusText, sw);
+    const toggleRow = el('div', { class: 'rd-console-top' }, statusText, sw);
     toggleCard.appendChild(toggleRow);
 
     function paintToggle() {
       const on = Prefs.get(userId, 'online', false) && isVerified();
       sw.classList.toggle('on', on);
       sw.setAttribute('aria-checked', String(on));
+      toggleCard.classList.toggle('is-online', on);
+      toggleCard.classList.toggle('is-locked', !isVerified());
+      window.dispatchEvent(new CustomEvent('lakbay:online')); // header status chip
       clear(statusText);
       const dot = el('span', { class: `rd-status-dot${on ? ' rd-status-dot--online' : ''}` });
       if (isVerified()) {
         statusText.append(
           el('div', { class: 'rd-online-title' }, dot,
-            el('span', { class: 't-h3' }, on ? "You're online" : "You're offline")),
-          el('div', { class: 't-small' }, on
+            el('h2', { class: 'rd-console-title' }, on ? "You're online" : "You're offline")),
+          el('p', { class: 'rd-console-sub' }, on
             ? 'Receiving ride requests around your area.'
             : 'Go online to start receiving ride requests.'),
         );
       } else {
         statusText.append(
           el('div', { class: 'rd-online-title' }, dot,
-            el('span', { class: 't-h3' }, 'Verification required')),
-          el('div', { class: 't-small' }, 'Submit your documents to activate online mode.'),
+            el('h2', { class: 'rd-console-title' }, 'Verification required')),
+          el('p', { class: 'rd-console-sub' }, 'Submit your documents to activate online mode.'),
         );
       }
     }
@@ -100,7 +105,7 @@ const dashboardView = {
     /* ---- verification banner ---- */
     if (!isVerified()) {
       const v = verificationOf();
-      const banner = el('button', { class: `card rd-verify-banner ${v === 'pending' ? 'rd-verify-banner--pending' : ''}`, type: 'button' },
+      const banner = el('button', { class: `rd-verify-banner ${v === 'pending' ? 'rd-verify-banner--pending' : ''}`, type: 'button' },
         el('span', { class: 'rv-icon' }, el('i', { 'data-lucide': v === 'pending' ? 'hourglass' : 'shield-check' })),
         el('span', { class: 'grow', style: 'text-align:left' },
           el('span', { class: 't-strong' }, v === 'pending' ? 'Verification pending review' : 'Complete your rider verification'),
@@ -113,7 +118,6 @@ const dashboardView = {
     }
 
     /* ---- today summary strip ---- */
-    const summaryCard = el('div', { class: 'card rd-today-card' });
     const metricsRow = el('div', { class: 'rd-today-metrics' });
     const statEls = {};
     [
@@ -128,13 +132,13 @@ const dashboardView = {
       statEls[id] = metric.querySelector('.rd-metric-value');
       metricsRow.appendChild(metric);
     });
-    summaryCard.appendChild(metricsRow);
-    wrap.appendChild(summaryCard);
+    toggleCard.appendChild(metricsRow);
 
-    function setStat(node, text, tick) {
-      if (node.textContent === text) return;
+    function setStat(node, text, roll) {
+      if (roll) { rollText(node, text); return; }
+      if (node.dataset.roll === text) return;
+      node.dataset.roll = text;
       node.textContent = text;
-      if (tick) tickValue(node);
     }
 
     function paintStats() {
@@ -152,20 +156,22 @@ const dashboardView = {
     state.ticker = setInterval(paintStats, 15000);
 
     /* ---- demand map ---- */
-    const mapCard = el('div', { class: 'card card-pad' });
-    mapCard.appendChild(el('div', { class: 'row-between', style: 'margin-bottom:10px' },
-      el('h2', { class: 'cl-section-title' }, el('i', { 'data-lucide': 'map' }), 'Demand around you')));
+    const grid = el('div', { class: 'rd-dash-grid' });
+    const side = el('div', { class: 'rd-dash-side' });
+    const mapCard = el('section', { class: 'rd-dash-map', 'aria-labelledby': 'rd-demand-h' });
+    mapCard.appendChild(el('div', { class: 'rd-sec-head' },
+      el('h2', { class: 'cl-section-title', id: 'rd-demand-h' }, 'Demand around you')));
     const mapBox = el('div', { class: 'map-box rd-map-dash' });
     mapCard.appendChild(mapBox);
     const demandNote = el('p', { class: 't-xs', style: 'margin-top:8px' }, 'Finding your location\u2026');
     mapCard.appendChild(demandNote);
-    wrap.appendChild(mapCard);
+    grid.append(mapCard, side);
+    wrap.appendChild(grid);
 
     /* ---- recent activity ---- */
     const acts = Prefs.get(userId, 'riderActions', []).slice(0, 6);
-    const actCard = el('div', { class: 'card card-pad' });
-    actCard.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:6px' },
-      el('i', { 'data-lucide': 'history' }), 'Recent activity'));
+    const actCard = el('section', { class: 'rd-side-sec' });
+    actCard.appendChild(el('h2', { class: 'cl-section-title' }, 'Recent activity'));
     if (acts.length) {
       const list = el('div', { class: 'list' });
       acts.forEach((a) => {
@@ -186,30 +192,29 @@ const dashboardView = {
         el('h3', {}, 'No activity yet'),
         el('p', {}, 'Your accepts, declines, and completed trips will appear here.')));
     }
-    wrap.appendChild(actCard);
+    side.appendChild(actCard);
 
     /* ---- service zones strip ---- */
-    const zones = el('div', { class: 'card card-pad' });
-    zones.appendChild(el('h2', { class: 'cl-section-title', style: 'margin-bottom:8px' },
-      el('i', { 'data-lucide': 'map-pinned' }), 'Service zones'));
+    const zones = el('section', { class: 'rd-side-sec' });
+    zones.appendChild(el('h2', { class: 'cl-section-title' }, 'Service zones'));
     const zoneRow = el('div', { class: 'zone-list' });
-    // Show the rider's own area once known; Manila zones only as the no-GPS default
+    // Show the rider's own area once known; Cebu zones only as the no-GPS default
     const lastLoc = getLastLocation();
     const zoneNames = lastLoc && lastLoc.city
       ? [lastLoc.city, lastLoc.name].filter((v, i, a) => v && a.indexOf(v) === i)
-      : ['Makati / BGC', 'QC Diliman-Cubao', 'Ortigas / Pasig', 'Manila / Ermita', 'Pasay / MOA'];
+      : ['Lahug / IT Park', 'Cebu Business Park', 'Downtown / Colon', 'Mandaue', 'Mactan / Lapu-Lapu'];
     zoneNames.forEach((z) => zoneRow.appendChild(el('span', { class: 'zone-item' }, z)));
     zones.appendChild(zoneRow);
     zones.appendChild(el('p', { class: 't-xs', style: 'margin-top:8px' }, lastLoc && lastLoc.city
       ? `You're in an active service area. Requests come from passengers around ${lastLoc.city}.`
       : 'All zones are actively served. Boundary rules are configured per city.'));
-    wrap.appendChild(zones);
+    side.appendChild(zones);
 
     root.appendChild(wrap);
     Icons.refresh(root);
 
     /* map (after layout) — centers on the driver's real location when available */
-    let myPos = { lat: 14.5587, lng: 121.0196 };
+    let myPos = { lat: 10.3175, lng: 123.9055 }; // Cebu Business Park when there's no GPS fix
     setTimeout(async () => {
       if (!mapBox.isConnected) return;
       // locateUser also remembers the fix, so test requests spawn near the rider
@@ -282,8 +287,9 @@ const dashboardView = {
         demandNote.textContent = `Ride request from ${w.pax.name}.`;
         const created = RequestManager.createTestRequest(meNow, {
           passenger: w.pax,
-          pickup: { id: null, name: pk.name || 'Passenger pickup', address: pk.address, lat: w.pos.lat, lng: w.pos.lng },
-          dropoff: { id: null, name: dp.name || 'Passenger drop-off', address: dp.address, lat: w.drop.lat, lng: w.drop.lng },
+          // snapped to the geocoded address, so neither end can sit in the sea
+          pickup: { id: null, name: pk.name || 'Passenger pickup', address: pk.address, lat: pk.lat, lng: pk.lng },
+          dropoff: { id: null, name: dp.name || 'Passenger drop-off', address: dp.address, lat: dp.lat, lng: dp.lng },
         });
         if (created && state.map) state.map.removeMarker(w.key);
       }

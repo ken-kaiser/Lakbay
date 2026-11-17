@@ -71,3 +71,52 @@ export function withViewTransition(updateFn) {
     updateFn();
   }
 }
+
+/* Rolling digits — each digit of a value spins to its new number like an
+   odometer (₱1,260 → ₱1,345 turns only the digits that change). The first
+   call rolls up from 0. Screen readers get the plain value; the reel is
+   aria-hidden. Reduced motion: the text just updates. */
+function digitReel() {
+  const col = document.createElement('span');
+  col.className = 'roll-col';
+  for (let d = 0; d < 10; d++) { const s = document.createElement('span'); s.textContent = String(d); col.appendChild(s); }
+  const cell = document.createElement('span');
+  cell.className = 'roll-digit';
+  cell.appendChild(col);
+  return cell;
+}
+export function rollText(node, value) {
+  const text = String(value);
+  if (!node || node.dataset.roll === text) return;
+  const prev = node.dataset.roll;
+  node.dataset.roll = text;
+  if (prefersReducedMotion()) { node.textContent = text; return; }
+  const chars = [...text];
+  const shape = (t) => [...t].map((c) => (/\d/.test(c) ? '0' : c)).join('');
+  let reel = node.querySelector(':scope > .roll');
+  if (!reel || prev == null || shape(prev) !== shape(text)) {
+    // new layout (first paint, or the value gained/lost a digit): rebuild at 0
+    node.textContent = '';
+    const sr = document.createElement('span');
+    sr.className = 'sr-only';
+    reel = document.createElement('span');
+    reel.className = 'roll';
+    reel.setAttribute('aria-hidden', 'true');
+    chars.forEach((c) => {
+      if (/\d/.test(c)) reel.appendChild(digitReel());
+      else { const s = document.createElement('span'); s.className = 'roll-ch'; s.textContent = c; reel.appendChild(s); }
+    });
+    node.append(sr, reel);
+    void reel.offsetWidth; // commit the 0 position so the spin below animates
+  }
+  node.querySelector(':scope > .sr-only').textContent = text;
+  const digits = [...reel.children].filter((c) => c.classList.contains('roll-digit'));
+  let k = 0;
+  chars.forEach((c, i) => {
+    if (!/\d/.test(c)) return;
+    const col = reel.children[i].firstChild;
+    col.style.transitionDelay = `${(digits.length - 1 - k) * 45}ms`; // ones spin first, then tens…
+    col.style.transform = `translateY(-${Number(c) * 10}%)`;
+    k += 1;
+  });
+}

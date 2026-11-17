@@ -25,9 +25,16 @@ export function openModal({ title = '', body = null, actions = [], onClose = nul
   const overlay = el('div', { class: 'modal-overlay' }, box);
 
   function close(result) {
-    if (!overlay.isConnected) return;
-    overlay.remove();
+    if (!overlay.isConnected || overlay.classList.contains('is-leaving')) return;
     openStack = openStack.filter((o) => o !== api);
+    // exit animation, then remove; instant when motion is reduced
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) overlay.remove();
+    else {
+      overlay.classList.add('is-leaving');
+      overlay.style.pointerEvents = 'none';
+      setTimeout(() => overlay.remove(), 150);
+    }
     unlockScroll();
     if (onClose) onClose(result);
     if (lastFocused && lastFocused.isConnected) lastFocused.focus();
@@ -104,10 +111,8 @@ export function openModal({ title = '', body = null, actions = [], onClose = nul
 export function confirmDialog({ title = 'Are you sure?', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', tone = 'primary', icon = null }) {
   return new Promise((resolve) => {
     const body = el('div', {},
-      icon ? el('div', { style: 'margin-bottom:12px' },
-        el('span', {
-          style: `width:46px;height:46px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:${tone === 'danger' ? 'var(--c-danger-soft)' : 'var(--c-primary-soft)'};color:${tone === 'danger' ? 'var(--c-danger)' : 'var(--c-primary-deep)'}`,
-        }, el('i', { 'data-lucide': icon || 'triangle-alert', style: 'width:22px;height:22px' }))) : null,
+      icon ? el('div', { class: `confirm-icon${tone === 'danger' ? ' confirm-icon--danger' : ''}`, 'aria-hidden': 'true' },
+        el('i', { 'data-lucide': icon || 'triangle-alert' })) : null,
       el('p', { class: 't-body t-muted', style: 'line-height:1.55' }, message),
     );
     openModal({

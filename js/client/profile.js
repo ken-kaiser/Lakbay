@@ -148,7 +148,7 @@ function openPlaceModal(userId, existing) {
   let chosen = existing && existing.placeId ? getPlace(existing.placeId) : null;
 
   // Search real places near the user (any PH city); the built-in Metro
-  // Manila list is only a fallback when offline or for Manila users.
+  // Cebu list is only a fallback when offline or for Cebu users.
   let paintToken = 0;
   async function paintResults() {
     const token = ++paintToken;

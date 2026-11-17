@@ -74,22 +74,24 @@ function openPanel() {
     list,
   );
   state.panel = panel;
-  const header = state.bellBtn.closest('.app-header') || document.body;
-  header.appendChild(panel);
+  // On <body>, not inside the header: the header's backdrop-filter would make
+  // it the containing block for a fixed panel, squeezing the full-screen
+  // mobile panel into the 58px header strip.
+  document.body.appendChild(panel);
   paint();
 
   setTimeout(() => {
     const closer = (e) => {
       if (!panel.contains(e.target) && e.target !== state.bellBtn && !state.bellBtn.contains(e.target)) closePanel();
     };
-    document.addEventListener('mousedown', closer, { once: false });
+    document.addEventListener('pointerdown', closer, { once: false });
     panel._closer = closer;
   }, 10);
 }
 
 function closePanel() {
   if (!state.panel) return;
-  if (state.panel._closer) document.removeEventListener('mousedown', state.panel._closer);
+  if (state.panel._closer) document.removeEventListener('pointerdown', state.panel._closer);
   state.panel.remove();
   state.panel = null;
 }

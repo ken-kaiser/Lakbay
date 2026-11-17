@@ -19,12 +19,12 @@ import { locateUser, getLastLocation } from '../shared/geo.js';
 import { peso, dateTime, firstNameOf, statusLabel, statusEl } from '../shared/format.js';
 import { promoRail } from '../shared/promo.js';
 
-/* Sample location (Makati CBD) — used ONLY when the browser never gave us a
-   GPS fix (permission denied / unsupported). */
+/* Sample location (Cebu Business Park) — used ONLY when the browser never
+   gave us a GPS fix (permission denied / unsupported). */
 export const SAMPLE_LOC = {
-  name: 'Makati CBD area',
-  address: 'Ayala Ave, Bel-Air, Makati City',
-  lat: 14.5587, lng: 121.0196,
+  name: 'Cebu Business Park area',
+  address: 'Cebu Business Park, Cebu City',
+  lat: 10.3175, lng: 123.9055,
 };
 
 /* Best known pickup: last real GPS fix, else the sample point. */
@@ -66,7 +66,7 @@ function encodePoint(p) {
 function ensureSavedPlaces(userId) {
   let list = SavedPlacesRepo.list(userId);
   if (!list) {
-    // Sample Home/Work (Quezon City, Makati) only for the Manila demo account;
+    // Sample Home/Work (Banilad, IT Park) only for the Cebu demo account;
     // real users start empty and add their own places.
     list = userId === 'demo-passenger' ? DEFAULT_SAVED_PLACES(userId) : [];
     SavedPlacesRepo.save(userId, list);
@@ -129,8 +129,11 @@ function activeRideCard(b) {
   if (scheduled) {
     const startBtn = el('button', { class: 'btn btn--primary btn--sm' }, el('i', { 'data-lucide': 'play' }), 'Start now');
     startBtn.addEventListener('click', () => {
+      const live = Bookings.activeFor(App.user.id, 'passenger').find((x) => x.status !== 'scheduled');
+      if (live) { Toast.warn('You already have a ride', 'Finish or cancel your current ride first.'); App.navigate('trip', { restPath: live.id }); return; }
       startBtn.disabled = true; startBtn.classList.add('btn--loading');
-      const updated = Bookings.update(b.id, { status: 'searching' }, { by: 'passenger' });
+      const updated = Bookings.update(b.id, { status: 'searching' }, { by: 'passenger', expect: ['scheduled'] });
+      if (!updated) { Toast.error('Could not start', 'This scheduled ride is no longer available.'); App.navigate('home', {}, { replace: true }); return; }
       Sim.beginSearch(updated);
       Toast.info('Searching for riders', 'We are matching your scheduled ride with nearby drivers.');
       App.navigate('matching', { restPath: b.id });
@@ -143,8 +146,8 @@ function activeRideCard(b) {
         confirmLabel: 'Cancel ride', tone: 'danger', icon: 'circle-x',
       });
       if (!ok) return;
-      Sim.passengerCancel(b.id);
-      Toast.warn('Ride cancelled', 'Your scheduled booking was removed.');
+      if (Sim.passengerCancel(b.id)) Toast.warn('Ride cancelled', 'Your scheduled booking was removed.');
+      else Toast.error('Could not cancel', 'This ride can no longer be cancelled.');
       App.navigate('home', {}, { replace: true });
     });
     actions.append(startBtn, cancelBtn);
@@ -288,173 +291,140 @@ export const homeView = {
       Icons.refresh(chip);
     })();
 
-    const wrap = el('div', { class: 'cl-stack' });
+    /* Layout: the map is the stage. Desktop — booking panel left, sticky map
+       right. Phone — map on top, the panel rises over it like a sheet. */
+    const home = el('div', { class: 'cl-home' });
+    const panel = el('div', { class: 'cl-home-panel' });
+
+    /* map */
+    const mapBox = el('div', { class: 'map-box cl-home-map' });
+    const locateFab = el('button', { class: 'map-fab', type: 'button', 'aria-label': 'Center the map on my location' },
+      el('i', { 'data-lucide': 'locate-fixed' }));
+    locateFab.addEventListener('click', () => locateMe(root));
+    mapBox.appendChild(el('div', { class: 'cl-map-float' }, locateFab));
 
     /* welcome */
-    wrap.appendChild(el('div', { class: 'cl-welcome' },
-      el('h1', { class: 't-title' }, `Good ${greeting()}, ${firstNameOf(App.user)}`),
+    panel.appendChild(el('div', { class: 'cl-welcome' },
+      el('h1', { class: 'cl-welcome-title' }, `Good ${greeting()}, ${firstNameOf(App.user)}`),
       el('p', { class: 'cl-welcome-sub' }, 'Where can we take you today?'),
     ));
 
     /* active ride resume */
     const active = Bookings.activeFor(userId, 'passenger');
-    if (active.length) wrap.appendChild(activeRideCard(active[0]));
+    if (active.length) panel.appendChild(activeRideCard(active[0]));
 
-    /* booking launcher */
-    const launcher = el('section', { class: 'card cl-launcher', 'aria-label': 'Book a ride' });
-    const searchbar = el('button', { class: 'cl-searchbar', type: 'button' },
-      el('i', { 'data-lucide': 'search' }),
-      el('span', { class: 'cl-searchbar-text' }, 'Search destination or enter an address'),
-    );
-    searchbar.addEventListener('click', () => App.navigate('search'));
-    launcher.appendChild(searchbar);
-
-    const routebox = el('div', { class: 'cl-routebox' });
+    /* booking composer — pickup + destination, one primary action */
+    const launcher = el('section', { class: 'cl-compose', 'aria-label': 'Book a ride' });
     const pickupRow = el('button', { class: 'cl-route-row', type: 'button' },
       el('span', { class: 'cl-rr-dot' }),
-      el('i', { 'data-lucide': 'circle-dot' }),
       el('span', { class: 'cl-rr-body' },
         el('span', { class: 'cl-rr-label' }, 'Pickup'),
-        el('span', { class: 'cl-rr-value', 'data-role': 'pickup-value' }, known ? known.name : 'Locating you\u2026'),
+        el('span', { class: 'cl-rr-value', 'data-role': 'pickup-value' }, known ? known.name : 'Locating you…'),
       ),
+      el('i', { 'data-lucide': 'pencil-line' }),
     );
-    const destRow = el('button', { class: 'cl-route-row', type: 'button' },
+    const destRow = el('button', { class: 'cl-route-row cl-route-row--dest', type: 'button' },
       el('span', { class: 'cl-rr-dot cl-rr-dot--end' }),
-      el('i', { 'data-lucide': 'flag' }),
       el('span', { class: 'cl-rr-body' },
         el('span', { class: 'cl-rr-label' }, 'Destination'),
-        el('span', { class: 'cl-rr-value placeholder' }, 'Plan your route'),
+        el('span', { class: 'cl-rr-value placeholder' }, 'Where to?'),
       ),
+      el('i', { 'data-lucide': 'search' }),
     );
     pickupRow.addEventListener('click', () => App.navigate('search', { query: { focus: 'pickup' } }));
     destRow.addEventListener('click', () => App.navigate('search', { query: { focus: 'dropoff' } }));
-    routebox.append(pickupRow, destRow);
-    launcher.appendChild(routebox);
+    launcher.append(el('div', { class: 'cl-routebox' }, pickupRow, destRow));
 
-    const foot = el('div', { class: 'cl-launcher-foot' });
-    const bookBtn = el('button', { class: 'btn btn--primary btn--lg' }, el('i', { 'data-lucide': 'car-front' }), 'Book a ride');
+    const bookBtn = el('button', { class: 'btn btn--primary btn--lg' }, 'Book a ride', el('i', { 'data-lucide': 'arrow-right' }));
     bookBtn.addEventListener('click', () => App.navigate('search', { query: { focus: 'dropoff' } }));
-    const locateBtn = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' },
-      el('i', { 'data-lucide': 'locate-fixed' }), 'Locate me');
-    locateBtn.addEventListener('click', () => locateMe(root));
-    foot.append(bookBtn, locateBtn);
-    launcher.appendChild(foot);
-    wrap.appendChild(launcher);
+    const scheduleBtn = el('button', { class: 'btn btn--outline btn--lg', type: 'button' },
+      el('i', { 'data-lucide': 'calendar-clock' }), 'Schedule');
+    scheduleBtn.addEventListener('click', () => openScheduleModal(userId, saved));
+    launcher.appendChild(el('div', { class: 'cl-launcher-foot' }, bookBtn, scheduleBtn));
+    panel.appendChild(launcher);
 
-    /* map preview */
-    const mapBox = el('div', { class: 'map-box cl-map-home' });
-    const mapTag = el('span', { class: 'map-tag' }, el('i', { 'data-lucide': 'radar' }), 'Live map');
-    const mapFab = el('div', { class: 'cl-map-float' });
-    const recenterFab = el('button', { class: 'map-fab', type: 'button', 'aria-label': 'Recenter map on pickup' },
-      el('i', { 'data-lucide': 'crosshair' }));
-    recenterFab.addEventListener('click', () => {
-      const pos = state.located || currentLoc();
-      if (state.map) { state.map.setView(pos, 15); state.map.setMarker('pickup', pos, 'pickup', { label: 'Pickup' }); }
-    });
-    mapFab.appendChild(recenterFab);
-    mapBox.append(mapTag, mapFab);
-    wrap.appendChild(mapBox);
-
-    /* saved places */
-    const savedHead = el('div', { class: 'row-between' },
-      el('h2', { class: 'cl-section-title' }, 'Saved places'),
-      el('a', { class: 'cl-section-more', href: '#/profile?tab=places' }, 'Manage'),
-    );
-    const chipRow = el('div', { class: 'cl-hscroll', role: 'group', 'aria-label': 'Saved places' });
+    /* saved places — a plain list: icon, label, place */
+    const savedSec = el('section', { class: 'cl-home-sec', 'aria-labelledby': 'cl-saved-h' },
+      el('div', { class: 'cl-sec-head' },
+        el('h2', { class: 'cl-section-title', id: 'cl-saved-h' }, 'Saved places'),
+        el('a', { class: 'cl-section-more', href: '#/profile?tab=places' }, 'Manage')));
+    const savedList = el('div', { class: 'cl-place-list' });
     if (!saved.length) {
-      const addChip = el('button', { class: 'cl-place-chip', type: 'button' },
-        el('i', { 'data-lucide': 'plus' }), el('span', { class: 'clamp-1' }, 'Add Home or Work'));
-      addChip.addEventListener('click', () => App.navigate('profile', { query: { tab: 'places' } }));
-      chipRow.appendChild(addChip);
+      const addRow = el('button', { class: 'cl-place-item', type: 'button' },
+        el('i', { 'data-lucide': 'plus' }),
+        el('span', { class: 'cl-pi-body' },
+          el('span', { class: 'cl-pi-title' }, 'Add Home or Work'),
+          el('span', { class: 'cl-pi-sub' }, 'Book your usual trips in one tap')));
+      addRow.addEventListener('click', () => App.navigate('profile', { query: { tab: 'places' } }));
+      savedList.appendChild(addRow);
     }
     saved.forEach((sp) => {
-      const chipBtn = el('button', { class: 'cl-place-chip', type: 'button' },
+      const row = el('button', { class: 'cl-place-item', type: 'button', 'aria-label': `Book a ride to ${sp.label}, ${sp.name}` },
         el('i', { 'data-lucide': sp.icon || 'star' }),
-        el('span', { class: 'clamp-1' }, `${sp.label} · ${sp.name}`),
+        el('span', { class: 'cl-pi-body' },
+          el('span', { class: 'cl-pi-title' }, sp.label),
+          el('span', { class: 'cl-pi-sub' }, sp.name)),
+        el('i', { 'data-lucide': 'arrow-up-right', class: 'cl-pi-go' }),
       );
-      chipBtn.addEventListener('click', () => {
+      row.addEventListener('click', () => {
         pushRecent(userId, sp);
         App.navigate('rides', { query: { from: encodePoint({ ...(state.located || currentLoc()), placeId: null }), to: sp.placeId || encodePoint(sp) } });
       });
-      chipRow.appendChild(chipBtn);
+      savedList.appendChild(row);
     });
-    const savedWrap = el('div', { class: 'col', style: 'gap:10px' }, savedHead, chipRow);
-    wrap.appendChild(savedWrap);
+    savedSec.appendChild(savedList);
+    panel.appendChild(savedSec);
 
     /* recent destinations */
     const recents = Prefs.get(userId, 'recentPlaces', []);
-    const recentCard = el('section', { class: 'card' });
-    recentCard.appendChild(el('div', { class: 'card-head' },
-      el('h3', {}, 'Recent destinations'),
-      recents.length ? el('span', { class: 't-xs' }, 'Tap to book again') : null,
-    ));
+    const recentSec = el('section', { class: 'cl-home-sec', 'aria-labelledby': 'cl-recent-h' },
+      el('div', { class: 'cl-sec-head' },
+        el('h2', { class: 'cl-section-title', id: 'cl-recent-h' }, 'Recent'),
+        recents.length ? el('span', { class: 't-xs' }, 'Tap to book again') : null));
     if (recents.length) {
-      const list = el('div', { class: 'list cl-recent-list' });
+      const list = el('div', { class: 'cl-place-list' });
       recents.forEach((r) => {
-        const item = el('button', { class: 'list-item', type: 'button' },
-          el('span', { class: 'li-icon' }, el('i', { 'data-lucide': 'history' })),
-          el('span', { class: 'li-body' },
-            el('span', { class: 'li-title clamp-1' }, r.name),
-            el('span', { class: 'li-sub' }, r.address),
-          ),
-          el('i', { 'data-lucide': 'chevron-right', style: 'width:16px;height:16px;color:var(--c-ink-4);flex-shrink:0' }),
+        const item = el('button', { class: 'cl-place-item', type: 'button' },
+          el('i', { 'data-lucide': 'history' }),
+          el('span', { class: 'cl-pi-body' },
+            el('span', { class: 'cl-pi-title' }, r.name),
+            el('span', { class: 'cl-pi-sub' }, r.address)),
+          el('i', { 'data-lucide': 'arrow-up-right', class: 'cl-pi-go' }),
         );
         item.addEventListener('click', () => {
           App.navigate('rides', { query: { from: encodePoint({ ...(state.located || currentLoc()), placeId: null }), to: r.placeId || encodePoint(r) } });
         });
         list.appendChild(item);
       });
-      recentCard.appendChild(list);
+      recentSec.appendChild(list);
     } else {
-      recentCard.appendChild(el('div', { class: 'empty', style: 'padding:22px' },
-        el('div', { class: 'empty-icon' }, el('i', { 'data-lucide': 'history' })),
-        el('h3', {}, 'No recent destinations'),
-        el('p', {}, 'Places you book to will appear here for one-tap rebooking.'),
-      ));
+      recentSec.appendChild(el('p', { class: 'cl-quiet' }, 'Places you book will show up here for one-tap rebooking.'));
     }
-    wrap.appendChild(recentCard);
+    panel.appendChild(recentSec);
 
-    /* quick actions — secondary flows only (booking + wallet live in the nav) */
-    wrap.appendChild(el('h2', { class: 'cl-section-title' }, 'Quick actions'));
-    const quickDefs = [
-      { icon: 'calendar-clock', label: 'Schedule a ride', run: () => openScheduleModal(userId, saved) },
-      { icon: 'history', label: 'Ride history', run: () => App.navigate('activity') },
-      { icon: 'map-pin', label: 'Saved places', run: () => App.navigate('profile', { query: { tab: 'places' } }) },
-      { icon: 'life-buoy', label: 'Help & support', run: () => App.navigate('profile', { query: { tab: 'support' } }) },
-    ];
-    const grid = el('div', { class: 'cl-quick-grid' });
-    quickDefs.forEach((q) => {
-      const btn = el('button', { class: 'cl-quick', type: 'button' }, el('i', { 'data-lucide': q.icon }), el('span', {}, q.label));
-      btn.addEventListener('click', q.run);
-      grid.appendChild(btn);
-    });
-    wrap.appendChild(grid);
+    home.append(panel, mapBox);
 
-    /* promos — expressive campaign cards: art right, offer copy left,
-       code chip + copy action pinned bottom. One shared component. */
-    const promoHead = el('h2', { class: 'cl-section-title' }, 'Promos for you');
+    /* promos — expressive campaign cards (shared component) */
     const promoRow = promoRail(PROMOS, {
-      onCopy: async (p, card) => {
+      onCopy: async (p) => {
         const ok = await copyText(p.code);
         if (ok) Toast.success('Code copied', `${p.code} is ready to paste at checkout.`);
         else Toast.info('Code: ' + p.code, 'Copy it manually and enter it before confirming your ride.');
       },
     });
     promoRow.classList.add('cl-promo-row-rail');
-    wrap.appendChild(el('div', { class: 'col', style: 'gap:10px' }, promoHead, promoRow));
+    const promoSec = el('section', { class: 'cl-home-promos', 'aria-labelledby': 'cl-promo-h' },
+      el('div', { class: 'cl-sec-head' }, el('h2', { class: 'cl-section-title', id: 'cl-promo-h' }, 'Promos for you')),
+      promoRow);
 
-    /* info strip */
-    const info = el('div', { class: 'cl-info-strip' });
-    info.appendChild(el('div', { class: 'cl-avail-strip' },
-      el('span', { class: 'pulse-dot', 'aria-hidden': 'true' }),
-      el('span', {}, 'Moto and car rides available in your area'),
-    ));
-    info.appendChild(el('div', { class: 'info-banner info-banner--neutral' },
+    /* one quiet safety line + help, instead of a stack of banners */
+    const helpLink = el('a', { href: '#/profile?tab=support' }, 'Help & support');
+    const foot = el('p', { class: 'cl-home-foot' },
       el('i', { 'data-lucide': 'shield-check' }),
-      el('span', {}, el('strong', {}, 'Safety first. '), 'Check the plate number and driver photo before boarding, and share your trip with someone you trust.'),
-    ));
-    wrap.appendChild(info);
+      el('span', {}, 'Check the plate and driver photo before boarding, and share your trip with someone you trust. '),
+      helpLink);
 
+    const wrap = el('div', { class: 'cl-stack cl-home-wrap' }, home, promoSec, foot);
     root.appendChild(wrap);
     Icons.refresh(root);
 

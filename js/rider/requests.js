@@ -8,7 +8,7 @@ import { Bookings, Notifs, Prefs, Users } from '../storage.js';
 import { Sim } from '../shared/sim.js';
 import {
   DEMO_PASSENGERS, RIDE_CATEGORIES, getPlace, generateRoute, routeLengthKm,
-  estimateDurationMin, estimateFare, PLACES, nearbyPlaces,
+  estimateDurationMin, estimateFare, PLACES, nearbyPlaces, haversineKm, formatDistanceKm, riderShare,
 } from '../data.js';
 import { getLastLocation } from '../shared/geo.js';
 import { el, qs } from '../shared/dom.js';
@@ -57,58 +57,59 @@ const RequestManager = {
   showRequest(booking, me) {
     const cat = RIDE_CATEGORIES.find((c) => c.id === booking.category);
     const match = me.vehicle && me.vehicle.categoryIds && me.vehicle.categoryIds.includes(booking.category);
-    const net = Math.round(booking.fare.total * 0.8);
+    const { net } = riderShare(booking.fare.total);
 
     let secondsLeft = ACCEPT_WINDOW_SEC;
-    const ring = el('div', { class: 'rd-count-ring', style: '--p:100' },
-      el('span', { class: 'rd-count-num' }, String(ACCEPT_WINDOW_SEC)));
+    /* expiry: a draining bar + seconds (the interval below updates both) */
+    const ring = el('div', { class: 'rd-expiry', style: '--p:100' },
+      el('span', { class: 'rd-expiry-bar', 'aria-hidden': 'true' }),
+      el('span', { class: 'rd-expiry-txt' }, 'Expires in ', el('span', { class: 'rd-count-num t-num' }, String(ACCEPT_WINDOW_SEC)), 's'));
 
-    const body = el('div', { class: 'col', style: 'gap:13px' });
+    const here = getLastLocation();
+    const pickupKm = here ? haversineKm(here, booking.pickup) : null;
+    const payLabel = booking.payment.method === 'cash' ? 'Cash' : booking.payment.method === 'gcash' ? 'GCash' : 'Maya';
+
+    const body = el('div', { class: 'rd-req' });
     if (!prefersReducedMotion()) body.classList.add('rd-request-enter');
+    body.appendChild(ring);
 
-    /* passenger row */
-    body.appendChild(el('div', { class: 'row', style: 'gap:12px' },
-      avatarElLite({ name: booking.passengerName, avatar: booking.passengerAvatar }, 'avatar--lg'),
-      el('div', { class: 'grow' },
-        el('div', { class: 't-h3' }, booking.passengerName),
-        el('div', { class: 't-small row', style: 'gap:6px' },
-          el('span', { class: 'rating-pill' }, el('i', { 'data-lucide': 'star' }), Number(booking.passengerRating || 5).toFixed(2)),
-          el('span', {}, booking.passengerPhone || ''))),
-      ring,
-    ));
+    /* the money, first and largest */
+    body.appendChild(el('div', { class: 'rd-req-fare' },
+      el('span', { class: 'rd-req-net t-num' }, peso(net, { whole: true })),
+      // what the rider takes home from THIS trip, next to what the passenger pays
+      el('span', { class: 'rd-req-net-sub' }, `You earn on this trip · passenger pays ${peso(booking.fare.total, { whole: true })} by ${payLabel}`)));
+
+    /* the three numbers that decide a request */
+    body.appendChild(el('dl', { class: 'rd-req-facts' },
+      el('div', {}, el('dt', {}, 'Pickup'), el('dd', { class: 't-num' }, pickupKm != null ? `${formatDistanceKm(pickupKm)} away` : 'Nearby')),
+      el('div', {}, el('dt', {}, 'Trip'), el('dd', { class: 't-num' }, `${booking.distanceKm.toFixed(1)} km · ${booking.durationMin} min`)),
+      el('div', {}, el('dt', {}, 'Ride'), el('dd', {}, cat ? cat.name.replace('Lakbay ', '') : booking.category))));
 
     /* route */
-    const routeBox = el('div', { class: 'card card--flat card--inset' });
-    routeBox.appendChild(el('div', { class: 'route-line-item' },
-      el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
-        el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, booking.pickup.name))));
-    routeBox.appendChild(el('div', { class: 'route-line-item' },
-      el('span', { class: 'rl-dot rl-dot--end' }), el('div', { class: 'grow' },
-        el('span', { class: 'rl-label' }, 'Drop-off'), el('span', { class: 'rl-value clamp-1' }, booking.dropoff.name))));
-    body.appendChild(routeBox);
+    body.appendChild(el('div', { class: 'rd-req-route' },
+      el('div', { class: 'route-line-item' },
+        el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
+          el('span', { class: 'rl-value clamp-1' }, booking.pickup.name),
+          booking.pickup.address ? el('span', { class: 'rl-sub clamp-1' }, booking.pickup.address) : null)),
+      el('div', { class: 'route-line-item' },
+        el('span', { class: 'rl-dot rl-dot--end' }), el('div', { class: 'grow' },
+          el('span', { class: 'rl-value clamp-1' }, booking.dropoff.name),
+          booking.dropoff.address ? el('span', { class: 'rl-sub clamp-1' }, booking.dropoff.address) : null))));
 
-    /* facts */
-    const facts = el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' });
-    facts.appendChild(el('span', { class: 'chip chip--static' }, el('i', { 'data-lucide': 'car-front' }), cat ? cat.name : booking.category));
-    facts.appendChild(el('span', { class: 'chip chip--static' }, el('i', { 'data-lucide': 'route' }), `${booking.distanceKm.toFixed(1)} km · ~${booking.durationMin} min`));
-    facts.appendChild(el('span', { class: 'chip chip--static' }, el('i', { 'data-lucide': 'banknote' }), `${booking.payment.method === 'cash' ? 'Cash' : booking.payment.method === 'gcash' ? 'GCash' : 'Maya'}`));
-    if (!match) facts.appendChild(el('span', { class: 'flag-note flag-note--warn' }, el('i', { 'data-lucide': 'triangle-alert' }), 'Outside your vehicle type'));
-    body.appendChild(facts);
+    /* passenger */
+    body.appendChild(el('div', { class: 'rd-req-pax' },
+      avatarElLite({ name: booking.passengerName, avatar: booking.passengerAvatar }, ''),
+      el('div', { class: 'grow' },
+        el('div', { class: 't-strong' }, booking.passengerName),
+        el('div', { class: 't-small t-num' }, `★ ${Number(booking.passengerRating || 5).toFixed(2)} passenger rating`))));
 
+    if (!match) body.appendChild(el('span', { class: 'flag-note flag-note--warn' }, el('i', { 'data-lucide': 'triangle-alert' }), 'Outside your vehicle type'));
     if (booking.pickup.instructions) {
-      body.appendChild(el('div', { class: 'info-banner info-banner--neutral' },
-        el('i', { 'data-lucide': 'message-square-text' }),
-        el('span', {}, el('strong', {}, 'Passenger note: '), booking.pickup.instructions)));
+      body.appendChild(el('p', { class: 'rd-req-note' }, el('strong', {}, 'Note: '), booking.pickup.instructions));
     }
 
-    body.appendChild(el('div', { class: 'rd-fare-hero' },
-      el('div', { class: 'grow' },
-        el('span', { class: 't-overline' }, 'Your net · after 20% commission'),
-        el('div', { class: 'rd-fare-value' }, peso(net)),
-        el('span', { class: 't-xs' }, `Gross fare ${peso(booking.fare.total)}`))));
-
     /* actions */
-    const acceptBtn = el('button', { class: 'btn btn--primary btn--lg', style: 'flex:1.4' }, el('i', { 'data-lucide': 'check' }), 'Accept request');
+    const acceptBtn = el('button', { class: 'btn btn--primary btn--lg', style: 'flex:2' }, el('i', { 'data-lucide': 'check' }), 'Accept');
     const declineBtn = el('button', { class: 'btn btn--outline btn--lg' }, 'Decline');
 
     const modal = Modal.open({
@@ -131,7 +132,7 @@ const RequestManager = {
       Toast.warn('Request expired', 'The request window elapsed and moved to other nearby riders.');
       this._log('missed', booking);
       if (booking.testRequest && Bookings.byId(booking.id) && Bookings.byId(booking.id).status === 'searching') {
-        Bookings.update(booking.id, { status: 'expired' }, { publish: false });
+        Bookings.update(booking.id, { status: 'expired' }, { publish: false, expect: ['searching'] });
       }
     };
 
@@ -152,13 +153,15 @@ const RequestManager = {
 
     acceptBtn.addEventListener('click', () => {
       const cur = Bookings.byId(booking.id);
-      if (!cur || cur.status !== 'searching' || cur.riderId) {
-        finish(); modal.close('gone');
-        Toast.error('No longer available', 'Another rider already took this request.');
+      // acceptRequest is a compare-and-set on the stored booking: it returns
+      // null if another rider (or the passenger's cancel) got there first
+      const updated = cur && !this.hasActiveTrip(me.id) ? Sim.acceptRequest(cur, me) : null;
+      finish();
+      if (!updated) {
+        modal.close('gone');
+        Toast.error('No longer available', 'This request was taken or cancelled.');
         return;
       }
-      finish();
-      const updated = Sim.acceptRequest(cur, me);
       modal.close('accepted');
       Notifs.push({
         userId: me.id, role: 'rider',
@@ -192,7 +195,7 @@ const RequestManager = {
       return null;
     }
     // Test requests happen around the rider's real location. The built-in
-    // places are Metro Manila only, so elsewhere (e.g. Cebu) we generate
+    // places are Metro Cebu only, so elsewhere (e.g. Davao) we generate
     // pickup/drop-off points a short drive from the rider instead.
     const here = getLastLocation();
     const localPool = here ? nearbyPlaces(here, 20, 20).filter((p) => p.category !== 'airport') : [];
@@ -248,7 +251,7 @@ const RequestManager = {
     setTimeout(() => {
       const cur = Bookings.byId(booking.id);
       if (cur && cur.status === 'searching' && !cur.riderId) {
-        Bookings.update(booking.id, { status: 'expired' }, { publish: false });
+        Bookings.update(booking.id, { status: 'expired' }, { publish: false, expect: ['searching'] });
       }
     }, (ACCEPT_WINDOW_SEC + 6) * 1000);
     this.consider(booking);

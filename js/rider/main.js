@@ -4,7 +4,8 @@
    request manager and the verification auto-review simulation.
    ========================================================================== */
 import { bootApp, App } from '../app.js';
-import { Bookings, Users, Bus, Session } from '../storage.js';
+import { Bookings, Users, Bus, Session, Prefs } from '../storage.js';
+import { el } from '../shared/dom.js';
 import { dashboardView } from './dashboard.js';
 import { tripView, navigationView } from './trip.js';
 import { earningsView } from './earnings.js';
@@ -17,11 +18,11 @@ await bootApp({
   role: 'rider',
   homeView: 'dashboard',
   nav: [
-    { id: 'dashboard', icon: 'gauge', label: 'Dashboard', badgeKey: 'active' },
-    { id: 'trip', icon: 'route', label: 'Trip' },
-    { id: 'earnings', icon: 'wallet', label: 'Earnings' },
-    { id: 'activity', icon: 'history', label: 'History' },
-    { id: 'profile', icon: 'user-round', label: 'Profile' },
+    { id: 'dashboard', icon: 'gauge', label: 'Dashboard', badgeKey: 'active', group: 'Drive' },
+    { id: 'trip', icon: 'route', label: 'Trip', group: 'Drive' },
+    { id: 'earnings', icon: 'wallet', label: 'Earnings', group: 'Money' },
+    { id: 'activity', icon: 'history', label: 'History', group: 'Money' },
+    { id: 'profile', icon: 'user-round', label: 'Profile', group: 'Account' },
   ],
   views: [
     dashboardView,
@@ -33,6 +34,22 @@ await bootApp({
     { ...riderProfileView, id: 'settings' },
   ],
 });
+
+/* ---------- working status chip (header, every page) ----------
+   Online / offline / needs verification, at a glance; tapping it opens the
+   dashboard where the switch lives. Repaints when the dashboard toggles. */
+App.addHeaderItem(() => {
+  const me = Users.byId(App.user.id) || App.user;
+  const verified = me.verification && me.verification.status === 'verified';
+  const on = verified && Prefs.get(me.id, 'online', false);
+  const label = !verified ? 'Not verified' : on ? 'Online' : 'Offline';
+  const chip = el('a', {
+    class: `rd-status-chip${on ? ' is-on' : ''}${verified ? '' : ' is-warn'}`, href: '#/dashboard',
+    'aria-label': `Status: ${label}. Open dashboard`,
+  }, el('span', { class: 'rd-status-chip-dot', 'aria-hidden': 'true' }), el('span', {}, label));
+  return chip;
+});
+window.addEventListener('lakbay:online', () => App.refreshHeader());
 
 /* ---------- incoming request manager ---------- */
 const onlineGetter = () => RequestManager._online === true;
@@ -64,6 +81,7 @@ function tickVerification() {
         Notifs.push({ userId: me.id, role: 'rider', title: 'You are verified', body: 'Your documents passed the review. You can start accepting rides.', icon: 'shield-check', tone: 'success' });
       });
       Toast.success('Verified!', 'Your rider account is verified. Go online from the dashboard.');
+      window.dispatchEvent(new CustomEvent('lakbay:online')); // header status chip
     }
   }
 }

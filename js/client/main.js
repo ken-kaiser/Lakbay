@@ -16,10 +16,10 @@ await bootApp({
   role: 'passenger',
   homeView: 'home',
   nav: [
-    { id: 'home', icon: 'house', label: 'Home', badgeKey: 'active' },
-    { id: 'activity', icon: 'history', label: 'Activity' },
-    { id: 'wallet', icon: 'wallet', label: 'Wallet' },
-    { id: 'profile', icon: 'user-round', label: 'Profile' },
+    { id: 'home', icon: 'house', label: 'Home', badgeKey: 'active', group: 'Ride' },
+    { id: 'activity', icon: 'history', label: 'Activity', group: 'Ride' },
+    { id: 'wallet', icon: 'wallet', label: 'Wallet', group: 'Account' },
+    { id: 'profile', icon: 'user-round', label: 'Profile', group: 'Account' },
   ],
   views: [
     homeView,

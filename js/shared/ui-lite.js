@@ -31,3 +31,35 @@ export function starsRead(value = 0) {
   }
   return wrap;
 }
+
+/* Trip stepper — the ride's progression as four labelled stages.
+   steps: [label, statuses[]][]; call .paint(status) whenever it changes.
+   The current stage is announced via aria-current. */
+export function tripStepper(steps, status) {
+  const ol = el('ol', { class: 'trip-steps', 'aria-label': 'Trip progress' });
+  const items = steps.map(([label]) => {
+    const li = el('li', { class: 'trip-step' }, el('span', { class: 'trip-step-bar' }), el('span', { class: 'trip-step-label' }, label));
+    ol.appendChild(li);
+    return li;
+  });
+  ol.paint = (st) => {
+    const idx = steps.findIndex(([, sts]) => sts.includes(st));
+    items.forEach((li, i) => {
+      li.classList.toggle('done', idx >= 0 && i < idx);
+      li.classList.toggle('current', i === idx);
+      if (i === idx) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    });
+  };
+  ol.paint(status);
+  return ol;
+}
+
+/* Payment method mark: the wallet's own brand mark when it has one (GCash,
+   Maya), otherwise its icon on a tinted tile (Cash). */
+export function payMark(m, cls = 'po-logo') {
+  if (m && m.mark) {
+    return el('span', { class: `${cls} po-logo--mark` },
+      el('img', { src: m.mark, alt: '', width: '36', height: '36', decoding: 'async' }));
+  }
+  return el('span', { class: cls, style: `background:${m.logoBg};color:${m.logoFg}` }, el('i', { 'data-lucide': m.icon }));
+}

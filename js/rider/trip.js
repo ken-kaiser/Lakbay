@@ -8,8 +8,9 @@ import { App } from '../app.js';
 import { Bookings, Msgs, Bus, Prefs } from '../storage.js';
 import { Sim } from '../shared/sim.js';
 import {
-  RIDE_CATEGORIES, QUICK_MSGS_RIDER, COMPLIMENTS, nearbyPlaces, generateRoute,
+  RIDE_CATEGORIES, quickReplies, COMPLIMENTS, nearbyPlaces, generateRoute,
   routeLengthKm, pointAtDistance, navSteps,
+  riderShare,
 } from '../data.js';
 import { el, clear, qs } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
@@ -18,7 +19,8 @@ import { Modal, confirmDialog } from '../shared/modal.js';
 import { createMap } from '../shared/map.js';
 import { roadRoute, densify } from '../shared/geo.js';
 import { peso, dateTime, statusLabel, statusEl, refreshStatusEl, statusIcon, initials } from '../shared/format.js';
-import { avatarElLite, starsRead } from '../shared/ui-lite.js';
+import { avatarElLite, starsRead, tripStepper } from '../shared/ui-lite.js';
+import { confettiFrom } from '../shared/confetti.js';
 
 const state = { ticker: null, map: null, unsubs: [] };
 
@@ -93,6 +95,13 @@ const tripView = {
     const head = el('div', { class: 'cl-trip-panel-head' },
       el('h3', {}, 'Trip details'), stPill);
     panel.appendChild(head);
+    const stepper = tripStepper([
+      ['To pickup', ['accepted', 'arriving']],
+      ['At pickup', ['arrived']],
+      ['On trip', ['in_progress']],
+      ['Done', ['completed']],
+    ], b.status);
+    panel.appendChild(stepper);
     const body = el('div', { class: 'cl-trip-panel-body' });
 
     /* passenger card */
@@ -101,7 +110,7 @@ const tripView = {
       el('div', { class: 'cl-driver-info' },
         el('div', { class: 'cl-driver-name' }, b.passengerName,
           el('span', { class: 'rating-pill' }, el('i', { 'data-lucide': 'star' }), Number(b.passengerRating || 5).toFixed(2))),
-        el('div', { class: 'cl-driver-vehicle' }, `${cat.name} · ${peso(b.fare.total, { whole: true })} fare · net ${peso(b.fare.total * 0.8, { whole: true })}`),
+        el('div', { class: 'cl-driver-vehicle' }, `${cat.name} · ${peso(b.fare.total, { whole: true })} fare · net ${peso(riderShare(b.fare.total).net, { whole: true })}`),
         el('span', { class: 't-xs' }, b.passengerPhone || '')),
       el('div', { class: 'cl-driver-actions' },
         el('button', { class: 'icon-btn icon-btn--bordered', 'aria-label': 'Call passenger' }, el('i', { 'data-lucide': 'phone' }))),
@@ -118,7 +127,7 @@ const tripView = {
     body.appendChild(pc);
 
     /* route summary */
-    body.appendChild(el('div', { class: 'card card--flat card--inset' },
+    body.appendChild(el('div', { class: 'cl-trip-route' },
       el('div', { class: 'route-line-item' },
         el('span', { class: 'rl-dot' }), el('div', { class: 'grow' },
           el('span', { class: 'rl-label' }, 'Pickup'), el('span', { class: 'rl-value clamp-1' }, b.pickup.name),
@@ -144,12 +153,21 @@ const tripView = {
     wrap.appendChild(panel);
     root.appendChild(wrap);
 
+    /* The stored trip no longer allows this step (usually: the passenger
+       cancelled while this screen was open). Say so and leave the screen. */
+    function tripMovedOn() {
+      const now = Bookings.byId(b.id);
+      const cancelled = now && now.status === 'cancelled';
+      Toast.warn(cancelled ? 'Ride cancelled' : 'Trip changed', cancelled ? 'The passenger cancelled this ride.' : 'This trip was updated elsewhere.');
+      App.navigate(cancelled ? 'dashboard' : 'trip', {}, { replace: true });
+    }
+
     /* ---- workflow actions ---- */
     function paintActions() {
       clear(actionArea);
       const cur = Bookings.byId(b.id);
       if (!cur) return;
-      const navBtn = el('button', { class: 'btn btn--soft btn--lg' },
+      const navBtn = el('button', { class: 'btn btn--outline btn--lg' },
         el('i', { 'data-lucide': 'navigation' }),
         cur.status === 'in_progress' ? 'Navigate to destination' : 'Navigate to pickup');
       navBtn.addEventListener('click', () => {
@@ -160,7 +178,7 @@ const tripView = {
         const arriveBtn = el('button', { class: 'btn btn--primary btn--lg' },
           el('i', { 'data-lucide': 'map-pin-check' }), "I've arrived at pickup");
         arriveBtn.addEventListener('click', () => {
-          Sim.riderStatusAdvance(cur.id, 'arrived');
+          if (!Sim.riderStatusAdvance(cur.id, 'arrived')) { tripMovedOn(); return; }
           Toast.success('Arrival sent', 'Your passenger has been notified that you are waiting.');
           paintActions();
         });
@@ -175,11 +193,11 @@ const tripView = {
             confirmLabel: 'Start trip', icon: 'play',
           });
           if (!ok) return;
-          Sim.riderStatusAdvance(cur.id, 'in_progress');
+          if (!Sim.riderStatusAdvance(cur.id, 'in_progress')) { tripMovedOn(); return; }
           Toast.success('Trip started', 'Navigate safely. Complete the trip on arrival.');
           paintActions();
         });
-        actionArea.append(navBtn, startBtn);
+        actionArea.append(startBtn, navBtn);
       } else if (cur.status === 'in_progress') {
         const doneBtn = el('button', { class: 'btn btn--primary btn--lg' },
           el('i', { 'data-lucide': 'flag' }), 'Complete trip');
@@ -190,25 +208,24 @@ const tripView = {
           const ok = await confirmDialog({
             title: isCash ? `Collect ${peso(cur.fare.total)} cash` : `Confirm ${method} payment`,
             message: isCash
-              ? `You arrived at ${cur.dropoff.name}. Collect ${peso(cur.fare.total)} in cash from ${cur.passengerName}, then confirm. Your net is ${peso(cur.fare.total * 0.8, { whole: true })} after 20% commission.`
-              : `You arrived at ${cur.dropoff.name}. ${cur.passengerName}'s ${method} wallet will be charged ${peso(cur.fare.total)} (simulated). Your net is ${peso(cur.fare.total * 0.8, { whole: true })} after 20% commission.`,
+              ? `You arrived at ${cur.dropoff.name}. Collect ${peso(cur.fare.total)} in cash from ${cur.passengerName}, then confirm. Your net is ${peso(riderShare(cur.fare.total).net, { whole: true })} after 20% commission.`
+              : `You arrived at ${cur.dropoff.name}. ${cur.passengerName}'s ${method} wallet will be charged ${peso(cur.fare.total)} (simulated). Your net is ${peso(riderShare(cur.fare.total).net, { whole: true })} after 20% commission.`,
             confirmLabel: isCash ? 'Cash received · complete' : 'Complete trip', icon: isCash ? 'banknote' : 'flag',
           });
           if (!ok) return;
-          Sim.riderStatusAdvance(cur.id, 'completed');
-          Toast.success('Payment received', `Net ${peso(cur.fare.total * 0.8, { whole: true })} added to today's earnings.`);
+          if (!Sim.riderStatusAdvance(cur.id, 'completed')) { tripMovedOn(); return; }
+          Toast.success('Payment received', `Net ${peso(riderShare(cur.fare.total).net, { whole: true })} added to today's earnings.`);
           // re-render shows the trip summary, which also opens the passenger rating
           App.navigate('trip', {}, { replace: true });
         });
-        actionArea.append(navBtn, doneBtn);
+        actionArea.append(doneBtn, navBtn);
       } else if (cur.status === 'completed') {
         const gross = cur.fare.total;
-        const commission = Math.round(gross * 0.2 * 100) / 100;
-        const net = Math.round((gross - commission) * 100) / 100;
+        const { commission, net } = riderShare(gross); // same figures as the earnings ledger
         const row = (label, value, strong) => el('div', { class: 'row-between', style: 'padding:4px 0' },
           el('span', { class: strong ? 't-strong' : 't-small' }, label),
           el('span', { class: (strong ? 't-strong ' : '') + 't-num' }, value));
-        const summary = el('div', { class: 'card card--flat card--inset' },
+        const summary = el('div', { class: 'rd-trip-summary' },
           el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' },
             el('i', { 'data-lucide': 'receipt' }), el('span', { class: 't-strong' }, 'Trip summary')),
           row('Payment', `${METHOD_LABEL[cur.payment.method] || cur.payment.method} · paid`),
@@ -301,11 +318,13 @@ const tripView = {
       if (etaText) etaText.textContent = label;
 
       refreshStatusEl(stPill, cur.status);
+      stepper.paint(cur.status);
     }
     state.ticker = setInterval(tick, 500);
 
     const unsub = Bus.subscribe('booking:update', ({ booking }) => {
       if (!booking || booking.id !== b.id) return;
+      if (booking.status === 'cancelled') { tripMovedOn(); return; } // passenger cancelled: don't leave a dead trip on screen
       if (['accepted', 'arriving', 'arrived', 'in_progress', 'completed'].includes(booking.status)) paintActions();
     });
     state.unsubs.push(unsub);
@@ -355,12 +374,18 @@ function buildRiderChat(b) {
   sendBtn.addEventListener('click', () => send(input.value));
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(input.value); });
 
-  const quick = el('div', { class: 'chat-quick' });
-  QUICK_MSGS_RIDER.forEach((q) => {
-    const chip = el('button', { class: 'chip chip--soft', type: 'button' }, q);
-    chip.addEventListener('click', () => send(q));
-    quick.appendChild(chip);
-  });
+  // quick replies for the trip's current stage (repainted when it changes)
+  const quick = el('div', { class: 'chat-quick', role: 'group', 'aria-label': 'Quick replies' });
+  function paintQuick() {
+    clear(quick);
+    quickReplies('rider', Bookings.byId(b.id) || b).forEach((q) => {
+      const chip = el('button', { class: 'chip chip--soft', type: 'button' }, q);
+      chip.addEventListener('click', () => send(q));
+      quick.appendChild(chip);
+    });
+  }
+  paintQuick();
+  state.unsubs.push(Bus.subscribe('booking:update', ({ booking }) => { if (booking && booking.id === b.id) paintQuick(); }));
 
   const pane = el('div', { class: 'cl-chat-pane' },
     el('div', { class: 'cl-chat-head' },
@@ -424,6 +449,7 @@ function offerPassengerRating(b) {
         onClick: (api) => {
           if (!stars) { Toast.warn('Pick a rating', 'Choose 1 to 5 stars, or Skip.'); return; }
           Bookings.update(cur.id, { ratingRider: { stars, compliments: [...picked] } }, { publish: false });
+          if (stars >= 4) confettiFrom(starRow); // celebrate a good passenger; low ratings stay calm
           api.close(true);
           Toast.success('Thanks!', 'Your passenger rating was recorded.');
         },

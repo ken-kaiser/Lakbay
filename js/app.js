@@ -11,9 +11,12 @@ import { NotifCenter } from './shared/notifications.js';
 import { confirmDialog, closeAllModals } from './shared/modal.js';
 import { Toast } from './shared/toast.js';
 import { withViewTransition } from './shared/motion.js';
+import { Theme, startTheme } from './shared/theme.js';
 
 const views = new Map();
 const hooks = { beforeRender: [], afterRender: [] };
+/* Extra header controls a role adds next to the bell (rider status chip) */
+const headerItems = [];
 let currentView = null;
 let currentUser = null;
 let shellRefs = {};
@@ -36,6 +39,8 @@ export const App = {
   back() { if (history.length > 1) history.back(); else App.navigate(shellRefs.homeView || 'home', {}, { replace: true }); },
 
   refreshHeader() { paintUserHeader(); },
+  /** fn() -> Node, rendered before the bell; re-run on every refreshHeader() */
+  addHeaderItem(fn) { headerItems.push(fn); paintUserHeader(); },
   setActiveTripIndicator(count) {
     const el2 = shellRefs.tripDot;
     if (!el2) return;
@@ -132,10 +137,27 @@ function buildShell({ nav, title, role, homeView }) {
         el('span', { class: 'logo-word' }, 'Lak', el('em', {}, 'bay')),
       ),
     ),
-    (() => { const navWrap = el('nav', { 'aria-label': 'Main navigation' }); nav.forEach((item) => navWrap.appendChild(navLink(item, 'side'))); return navWrap; })(),
+    (() => {
+      // Items that share a `group` sit under one quiet label
+      const navWrap = el('nav', { 'aria-label': 'Main navigation' });
+      let group = null;
+      nav.forEach((item) => {
+        if (item.group && item.group !== group) {
+          group = item.group;
+          navWrap.appendChild(el('span', { class: 'nav-group' }, group));
+        }
+        navWrap.appendChild(navLink(item, 'side'));
+      });
+      return navWrap;
+    })(),
     el('div', { class: 'side-foot' },
-      el('button', { class: 'nav-item', onclick: askLogout }, el('i', { 'data-lucide': 'log-out' }), 'Log out'),
-      el('div', { class: 't-xs', style: 'padding:8px 12px 0' }, 'Lakbay · v1.0'),
+      el('a', { class: 'side-account', href: '#/profile', 'aria-label': 'Open my profile' },
+        el('span', { class: 'avatar avatar--sm', style: `background-image:url("${userAvatar()}")` }),
+        el('span', { class: 'side-account-txt' },
+          el('strong', { class: 'clamp-1' }, `${currentUser.firstName} ${currentUser.lastName}`),
+          el('small', {}, role === 'rider' ? 'Rider account' : 'Passenger account'))),
+      el('button', { class: 'side-logout', type: 'button', 'aria-label': 'Log out', onclick: askLogout },
+        el('i', { 'data-lucide': 'log-out' })),
     ),
   );
 
@@ -185,6 +207,32 @@ export function logoSVG() {
   return el('span', { 'aria-hidden': 'true' }, h`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.25 9.06 21.68 11.24Q23.92 11.9 22.28 13.56L21.01 14.87Q20.25 15.65 19.4 16.32L11.07 22.91Q9.83 23.9 10.05 22.33L10.9 16.05Q11 15.31 11.35 14.65L14.25 9.06Z" fill="currentColor" opacity="0.8"/><path d="M14.25 9.06Q12.23 12.6 11 15.31" fill="none" stroke="rgba(0,0,0,0.32)" stroke-width="1.1" stroke-linecap="round"/><path d="M2.27 13.17Q0.08 12.65 1.69 11.07L11.47 1.45Q12.83 0.1 14.75 0.1L17.25 0.1Q19 0.1 18.18 1.65L14.72 8.18Q14.25 9.06 13.82 9.96L11.23 15.31L2.27 13.17Z" fill="currentColor"/></svg>`);
 }
 
+function userAvatar() {
+  return currentUser.avatar ? currentUser.avatar : avatarURI(currentUser.firstName + ' ' + currentUser.lastName);
+}
+
+/* Appearance switch for the account menu: System / Light / Dark */
+function themeSwitch() {
+  const opts = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
+  const group = el('div', { class: 'theme-switch', role: 'radiogroup', 'aria-label': 'Appearance' });
+  const paint = () => {
+    const cur = Theme.get();
+    group.querySelectorAll('button').forEach((b) => {
+      const on = b.dataset.mode === cur;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+  };
+  opts.forEach(([mode, icon, label]) => {
+    const b = el('button', { type: 'button', role: 'radio', 'data-mode': mode, title: label },
+      el('i', { 'data-lucide': icon }), el('span', {}, label));
+    b.addEventListener('click', (e) => { e.stopPropagation(); Theme.set(mode); paint(); });
+    group.appendChild(b);
+  });
+  paint();
+  return el('div', { class: 'menu-theme' }, el('span', { class: 'menu-theme-label' }, 'Appearance'), group);
+}
+
 /* ---------- Header content ---------- */
 function paintUserHeader() {
   const { headerLeft, headerRight, header } = shellRefs;
@@ -195,14 +243,15 @@ function paintUserHeader() {
   if (prevMenu) prevMenu.remove();
   if (header._menuCloser) { document.removeEventListener('click', header._menuCloser); header._menuCloser = null; }
 
-  // notification bell
+  // role-specific controls (e.g. rider online status), then the bell
+  headerItems.forEach((fn) => { try { const n = fn(); if (n) headerRight.appendChild(n); } catch (e) { console.error('[header item]', e); } });
   headerRight.appendChild(NotifCenter.createBellButton(currentUser.id));
 
   // account menu
   const menuBtn = el('button', { class: 'icon-btn', 'aria-label': 'Account menu' },
     el('span', {
       class: 'avatar avatar--sm',
-      style: `background-image:url("${currentUser.avatar ? currentUser.avatar : avatarURI(currentUser.firstName + ' ' + currentUser.lastName)}")`,
+      style: `background-image:url("${userAvatar()}")`,
     }),
   );
   headerRight.appendChild(menuBtn);
@@ -216,17 +265,27 @@ function paintUserHeader() {
     el('a', { class: 'menu-item', href: '#/profile' }, el('i', { 'data-lucide': 'user-round' }), 'My profile'),
     el('a', { class: 'menu-item', href: '#/settings' }, el('i', { 'data-lucide': 'settings' }), 'Settings'),
     el('div', { class: 'menu-sep' }),
+    themeSwitch(),
+    el('div', { class: 'menu-sep' }),
     el('button', { class: 'menu-item menu-item--danger', onclick: () => { menu.style.display = 'none'; askLogout(); } },
       el('i', { 'data-lucide': 'log-out' }), 'Log out'),
   );
   header.appendChild(menu);
 
+  menuBtn.setAttribute('aria-haspopup', 'menu');
+  menuBtn.setAttribute('aria-expanded', 'false');
+  const setMenu = (open) => {
+    menu.style.display = open ? 'flex' : 'none';
+    menuBtn.setAttribute('aria-expanded', String(open));
+  };
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+    setMenu(menu.style.display === 'none');
   });
+  menu.addEventListener('click', (e) => { if (e.target.closest('a.menu-item')) setMenu(false); });
+  menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { setMenu(false); menuBtn.focus(); } });
   header._menuCloser = (e) => {
-    if (!menu.contains(e.target) && !menuBtn.contains(e.target)) menu.style.display = 'none';
+    if (!menu.contains(e.target) && !menuBtn.contains(e.target)) setMenu(false);
   };
   document.addEventListener('click', header._menuCloser);
   Icons.refresh(menu);
@@ -268,6 +327,7 @@ async function askLogout() {
 
 /* ---------- Boot ---------- */
 export async function bootApp({ role, nav, homeView = 'home', views: viewList }) {
+  startTheme();
   await ensureSeeded();
   await seedDemoAccounts();
 
@@ -288,13 +348,21 @@ export async function bootApp({ role, nav, homeView = 'home', views: viewList })
   // Revive simulated rides whose timers died with the previous page load
   try {
     const { resumeSimTrips } = await import('./shared/sim.js');
-    resumeSimTrips();
+    resumeSimTrips(currentUser);
   } catch (e) { /* simulation is optional */ }
 
   // entrance choreography runs once per page load; internal navigation
   // is handled by view transitions instead of replaying the entrance.
   document.body.classList.add('app-boot');
   setTimeout(() => document.body.classList.add('app-ready'), 900);
+
+  // a failed save must never be silent: bookings and payments live in storage
+  let storageWarned = false;
+  window.addEventListener('lakbay:storage-error', () => {
+    if (storageWarned) return;
+    storageWarned = true;
+    Toast.error('Storage is full', 'Your last change could not be saved on this device. Free up browser storage and try again.');
+  });
 
   window.addEventListener('hashchange', renderRoute);
   renderRoute();

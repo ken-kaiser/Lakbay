@@ -5,7 +5,7 @@
    ========================================================================== */
 import { App } from '../app.js';
 import { Bookings, Prefs } from '../storage.js';
-import { RIDE_CATEGORIES } from '../data.js';
+import { RIDE_CATEGORIES, riderShare } from '../data.js';
 import { el, clear } from '../shared/dom.js';
 import { Icons } from '../shared/icons.js';
 import { Modal } from '../shared/modal.js';
@@ -16,7 +16,7 @@ const filters = { q: '', status: 'all' };
 
 function rideRow(b) {
   const cat = RIDE_CATEGORIES.find((c) => c.id === b.category) || RIDE_CATEGORIES[1];
-  const net = b.fare.total - Math.round(b.fare.total * 0.2);
+  const { net } = riderShare(b.fare.total);
   const row = el('button', { class: 'list-item', type: 'button' },
     el('span', { class: 'li-icon' },
       el('img', { src: cat.img, alt: '', style: 'width:100%;height:100%;object-fit:contain', loading: 'lazy',
@@ -37,7 +37,7 @@ function rideRow(b) {
 function openDetail(b) {
   const cat = RIDE_CATEGORIES.find((c) => c.id === b.category) || RIDE_CATEGORIES[1];
   const gross = b.fare.total;
-  const commission = Math.round(gross * 0.2);
+  const { commission } = riderShare(gross);
   const body = el('div', { class: 'col', style: 'gap:13px' });
 
   body.appendChild(el('div', {},
