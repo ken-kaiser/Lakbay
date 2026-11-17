@@ -127,17 +127,30 @@ html, body { overflow-x: clip; }
 /* ---------- hero — midnight stage, the fleet is the subject ---------- */
 .lb-hero {
   position: relative;
-  background: var(--c-dark);
+  /* asphalt surface (assets/brand/asphalt.webp: a seamless, seeded 1024px
+     tile of packed aggregate tinted into Midnight), lit like a studio road:
+     soft edge vignette · calmer tone behind the headline for readability ·
+     faint overhead light on the vehicle deck · asphalt · Midnight */
+  background:
+    radial-gradient(130% 95% at 68% 48%, rgba(8, 13, 11, 0) 45%, rgba(8, 13, 11, 0.6) 100%),
+    linear-gradient(90deg, rgba(16, 26, 23, 0.62) 0%, rgba(16, 26, 23, 0.3) 38%, rgba(16, 26, 23, 0) 60%),
+    radial-gradient(38% 46% at 72% 50%, rgba(244, 246, 239, 0.045), rgba(244, 246, 239, 0) 72%),
+    url("../assets/brand/asphalt.webp") 0 0 / 1024px auto repeat,
+    var(--c-dark);
   color: var(--c-on-dark);
   padding: 44px 0 56px;
   overflow: clip;
+}
+/* phones: a finer tile so the grain keeps its scale on dense screens */
+@media (max-width: 719.98px) {
+  .lb-hero { background-size: auto, auto, auto, 640px auto, auto; }
 }
 /* brand route pattern, faded out toward the copy so it never sits behind text */
 .lb-hero-bg {
   position: absolute; inset: 0;
   background-image: url("../assets/brand/pattern-route.svg");
   background-size: 560px auto; background-repeat: repeat;
-  opacity: 0.32; pointer-events: none;
+  opacity: 0.24; pointer-events: none; /* route lines read like road markings on the asphalt */
   -webkit-mask-image: radial-gradient(ellipse 60% 70% at 72% 50%, #000 0%, transparent 72%);
   mask-image: radial-gradient(ellipse 60% 70% at 72% 50%, #000 0%, transparent 72%);
 }
