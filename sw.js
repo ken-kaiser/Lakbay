@@ -10,7 +10,7 @@
      so typography works offline too.
    ========================================================================== */
 
-const VERSION = 'lakbay-v14';
+const VERSION = 'lakbay-v17';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -32,6 +32,7 @@ const PRECACHE = [
   './vendor/leaflet.js',
   './vendor/leaflet.css',
   './vendor/lucide.min.js',
+  './vendor/lenis.min.js',
   './assets/logo/favicon.svg',
   './assets/brand/bolt.svg',
   './assets/brand/pattern-route.svg',
@@ -63,7 +64,9 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      // cache: 'reload' skips the browser's HTTP cache (GitHub Pages sends
+      // max-age=600), so a new version never precaches yesterday's files
+      .then((cache) => cache.addAll(PRECACHE.map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -100,11 +103,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets: stale-while-revalidate
+  // Code and styles: network-first (cache only when offline). Serving them
+  // stale-while-revalidate let a reload pair fresh JS with last version's CSS.
+  if (/\.(css|js|mjs)$/.test(url.pathname)) {
+    event.respondWith(
+      fetch(req, { cache: 'no-cache' })
+        .then((res) => {
+          if (res && res.ok) { const copy = res.clone(); caches.open(ASSET_CACHE).then((c) => c.put(req, copy)).catch(() => {}); }
+          return res;
+        })
+        .catch(() => caches.match(req, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // Images and fonts: stale-while-revalidate
   event.respondWith(
     caches.open(ASSET_CACHE).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
+      // no-cache: always revalidate with the server, so the refreshed copy is
+      // the deployed file, not one held in the HTTP cache
+      const network = fetch(req, { cache: 'no-cache' })
         .then((res) => {
           if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
           return res;

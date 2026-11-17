@@ -29,7 +29,7 @@ const PIN_SVGS = {
   flag: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4c4-2.5 8 2.5 12 0v9c-4 2.5-8-2.5-12 0"/><path d="M4 15c4-2.5 8 2.5 12 0"/></svg>',
 };
 
-export function createMap(container, { center = [14.5995, 120.9822], zoom = 12, interactive = true } = {}) {
+export function createMap(container, { center = [10.3157, 123.8854], zoom = 12, interactive = true } = {}) {
   L = loadLeaflet();
   if (!L) {
     container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--c-ink-3);font-size:13px">Map library failed to load</div>';
@@ -167,7 +167,7 @@ export function createMap(container, { center = [14.5995, 120.9822], zoom = 12, 
     recenter() {
       const pk = state.markers['me'] || state.markers['pickup'];
       if (pk) map.setView(pk.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
-      else map.setView([14.5995, 120.9822], 12, { animate: true });
+      else map.setView([10.3157, 123.8854], 12, { animate: true });
     },
     /* Animate a marker along a polyline with requestAnimationFrame.
        Returns a stop() function. */

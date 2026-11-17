@@ -25,3 +25,5 @@ jobs:
           node-version: 22
       - name: Syntax, service worker and link checks
         run: node .github/scripts/check.mjs
+      - name: Booking lifecycle, money and sync tests
+        run: node .github/scripts/test.mjs

@@ -113,11 +113,15 @@ export async function reverseGeocode(lat, lng) {
       area: city || a.state || '',
       road,
       city,
+      // where the matched address actually is: a random point in the sea
+      // resolves to the nearest street, and callers move the pin there
+      lat: Number.isFinite(+j.lat) ? +j.lat : lat,
+      lng: Number.isFinite(+j.lon) ? +j.lon : lng,
     };
     placeCache.set(ck, out);
     return out;
   } catch (e) {
-    const out = { name: 'Your location', address: 'Your area', area: '', road: '', city: '' };
+    const out = { name: 'Your location', address: 'Your area', area: '', road: '', city: '', lat, lng };
     placeCache.set(ck, out);
     return out;
   }

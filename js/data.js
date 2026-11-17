@@ -4,62 +4,44 @@
    All data is local demonstration data. No network services required.
    ========================================================================== */
 
-/* ---------- Metro Manila places (approx real coordinates) ---------- */
+/* ---------- Metro Cebu places (approx real coordinates) ----------
+   Lakbay launches in Cebu first. Online search (OpenStreetMap) still finds
+   places anywhere; this list powers offline search, "Nearby" and demos. */
 export const PLACES = [
-  { id: 'moa', name: 'SM Mall of Asia', address: 'Seaside Blvd, Pasay City', area: 'Pasay', category: 'mall', lat: 14.5547, lng: 120.9886, keywords: 'mall of asia moa pasay bay shopping' },
-  { id: 'moa-arena', name: 'SM Mall of Asia Arena', address: 'J.W. Diokno Blvd, Mall of Asia Complex, Pasay', area: 'Pasay', category: 'landmark', lat: 14.5536, lng: 120.9860, keywords: 'arena concert mall of asia pasay' },
-  { id: 'naia3', name: 'NAIA Terminal 3', address: 'Andrews Ave, Pasay City', area: 'Pasay', category: 'airport', lat: 14.5136, lng: 121.0194, keywords: 'airport naia terminal 3 pasay flight' },
-  { id: 'naia1', name: 'NAIA Terminal 1', address: 'Ninoy Aquino Ave, Parañaque', area: 'Parañaque', category: 'airport', lat: 14.5086, lng: 121.0197, keywords: 'airport naia terminal 1 paranaque' },
-  { id: 'newport', name: 'Newport City / Resorts World', address: 'Newport Blvd, Pasay City', area: 'Pasay', category: 'landmark', lat: 14.5214, lng: 121.0163, keywords: 'newport resorts world casino hotel pasay' },
-  { id: 'ccp', name: 'Cultural Center of the Philippines', address: 'Roxas Blvd, Pasay City', area: 'Pasay', category: 'landmark', lat: 14.5531, lng: 120.9771, keywords: 'ccp cultural center theater pasay' },
-  { id: 'starcity', name: 'Star City', address: 'CCP Complex, Roxas Blvd, Pasay', area: 'Pasay', category: 'landmark', lat: 14.5497, lng: 120.9848, keywords: 'star city amusement park pasay' },
-
-  { id: 'bgc-hs', name: 'Bonifacio High Street', address: '5th Ave, Bonifacio Global City, Taguig', area: 'Taguig', category: 'mall', lat: 14.5535, lng: 121.0500, keywords: 'bgc high street taguig bonifacio shopping walk' },
-  { id: 'sm-aura', name: 'SM Aura Premier', address: '26th St, Bonifacio Global City, Taguig', area: 'Taguig', category: 'mall', lat: 14.5585, lng: 121.0572, keywords: 'sm aura bgc taguig mall shopping' },
-  { id: 'market-market', name: 'Market! Market!', address: '26th St, Bonifacio Global City, Taguig', area: 'Taguig', category: 'mall', lat: 14.5545, lng: 121.0560, keywords: 'market market bgc taguig palengke' },
-  { id: 'uptown', name: 'Uptown Mall BGC', address: '9th Ave, Bonifacio Global City, Taguig', area: 'Taguig', category: 'mall', lat: 14.5605, lng: 121.0510, keywords: 'uptown bgc taguig mall' },
-  { id: 'venice', name: 'Venice Grand Canal Mall', address: 'McKinley Hill, Taguig City', area: 'Taguig', category: 'mall', lat: 14.5348, lng: 121.0593, keywords: 'venice canal mckinley hill taguig italy' },
-  { id: 'stlukes', name: "St. Luke's Medical Center BGC", address: '32nd St, Bonifacio Global City, Taguig', area: 'Taguig', category: 'hospital', lat: 14.5541, lng: 121.0575, keywords: 'st lukes hospital bgc taguig medical' },
-
-  { id: 'greenbelt', name: 'Greenbelt Mall', address: 'Legaspi St, Makati City', area: 'Makati', category: 'mall', lat: 14.5558, lng: 121.0248, keywords: 'greenbelt makati mall ayala shopping' },
-  { id: 'glorietta', name: 'Glorietta', address: 'Ayala Center, Makati City', area: 'Makati', category: 'mall', lat: 14.5505, lng: 121.0238, keywords: 'glorietta makati mall ayala shopping' },
-  { id: 'ayala-ave', name: 'Ayala Avenue (PBCOM Tower)', address: 'Ayala Ave, Bel-Air, Makati City', area: 'Makati', category: 'office', lat: 14.5587, lng: 121.0196, keywords: 'ayala avenue office makati work pbcom' },
-  { id: 'rockwell', name: 'Power Plant Mall, Rockwell', address: 'Rockwell Center, Makati City', area: 'Makati', category: 'mall', lat: 14.5707, lng: 121.0290, keywords: 'rockwell power plant makati mall' },
-  { id: 'century', name: 'Century City Mall', address: 'Kalayaan Ave, Makati City', area: 'Makati', category: 'mall', lat: 14.5614, lng: 121.0291, keywords: 'century city makati mall' },
-  { id: 'makati-med', name: 'Makati Medical Center', address: '2 Amorsolo St, Legazpi Village, Makati', area: 'Makati', category: 'hospital', lat: 14.5589, lng: 121.0244, keywords: 'makati med hospital medical' },
-
-  { id: 'qmc', name: 'Quezon Memorial Circle', address: 'Elliptical Rd, Diliman, Quezon City', area: 'Quezon City', category: 'park', lat: 14.6489, lng: 121.0494, keywords: 'quezon memorial circle qc park' },
-  { id: 'up-diliman', name: 'UP Diliman (Quezon Hall)', address: 'University of the Philippines, Diliman, QC', area: 'Quezon City', category: 'school', lat: 14.6538, lng: 121.0545, keywords: 'up diliman university quezon city school' },
-  { id: 'uptc', name: 'UP Town Center', address: 'Katipunan Ave, Diliman, Quezon City', area: 'Quezon City', category: 'mall', lat: 14.6383, lng: 121.0664, keywords: 'up town center katipunan qc mall' },
-  { id: 'sm-north', name: 'SM City North EDSA', address: 'North Ave, Quezon City', area: 'Quezon City', category: 'mall', lat: 14.6265, lng: 121.0700, keywords: 'sm north edsa qc mall shopping' },
-  { id: 'trinoma', name: 'Trinoma', address: 'North Ave, Quezon City', area: 'Quezon City', category: 'mall', lat: 14.6234, lng: 121.0509, keywords: 'trinoma qc mall north avenue' },
-  { id: 'cubao', name: 'Araneta City (Cubao)', address: 'General Aguinaldo Ave, Cubao, QC', area: 'Quezon City', category: 'mall', lat: 14.6167, lng: 121.0500, keywords: 'araneta cubao coliseum gateway qc' },
-  { id: 'gateway', name: 'Gateway Mall Araneta City', address: 'Araneta Center, Cubao, Quezon City', area: 'Quezon City', category: 'mall', lat: 14.6197, lng: 121.0537, keywords: 'gateway mall cubao araneta' },
-  { id: 'centris', name: 'Eton Centris', address: 'EDSA cor Quezon Ave, Quezon City', area: 'Quezon City', category: 'office', lat: 14.6348, lng: 121.0330, keywords: 'eton centris edsa quezon ave office' },
-  { id: 'maginhawa', name: 'Maginhawa Food Strip', address: 'Maginhawa St, Teachers Village, QC', area: 'Quezon City', category: 'food', lat: 14.6395, lng: 121.0663, keywords: 'maginhawa food strip teachers village qc restaurant' },
-  { id: 'eastwood', name: 'Eastwood City', address: 'Libis, Quezon City', area: 'Quezon City', category: 'office', lat: 14.6042, lng: 121.0709, keywords: 'eastwood libis qc office bpo' },
-  { id: 'banawe', name: 'Banawe Auto Supply Row', address: 'Banawe St, Quezon City', area: 'Quezon City', category: 'shop', lat: 14.6287, lng: 121.0038, keywords: 'banawe auto parts qc' },
-  { id: 'fairview', name: 'SM City Fairview', address: 'Quirino Hwy, Novaliches, Quezon City', area: 'Quezon City', category: 'mall', lat: 14.7138, lng: 121.0583, keywords: 'sm fairview novaliches qc mall' },
-
-  { id: 'megamall', name: 'SM Megamall', address: 'EDSA cor Doña Julia Vargas Ave, Mandaluyong', area: 'Mandaluyong', category: 'mall', lat: 14.5846, lng: 121.0597, keywords: 'sm megamall ortigas mandaluyong edsa mall' },
-  { id: 'shang', name: 'Shangri-La Plaza', address: 'EDSA cor Shaw Blvd, Mandaluyong', area: 'Mandaluyong', category: 'mall', lat: 14.5849, lng: 121.0585, keywords: 'shangrila plaza ortigas shaw mandaluyong' },
-  { id: 'galleria', name: 'Robinsons Galleria', address: 'EDSA cor Ortigas Ave, Quezon City', area: 'Ortigas', category: 'mall', lat: 14.5849, lng: 121.0609, keywords: 'galleria ortigas edsa mall' },
-  { id: 'ortigas-center', name: 'Ortigas Center (San Miguel Ave)', address: 'San Miguel Ave, Ortigas Center, Pasig', area: 'Pasig', category: 'office', lat: 14.5859, lng: 121.0567, keywords: 'ortigas center office pasig work' },
-  { id: 'capitol-commons', name: 'Capitol Commons', address: 'Meralco Ave, Pasig City', area: 'Pasig', category: 'mall', lat: 14.5775, lng: 121.0693, keywords: 'capitol commons pasig estancia' },
-  { id: 'riverbanks', name: 'Riverbanks Center', address: 'A. Bonifacio Ave, Marikina City', area: 'Marikina', category: 'mall', lat: 14.6205, lng: 121.0776, keywords: 'riverbanks marikina mall outlet' },
-
-  { id: 'rizal-park', name: 'Rizal Park (Luneta)', address: 'Roxas Blvd, Ermita, Manila', area: 'Manila', category: 'park', lat: 14.5814, lng: 120.9751, keywords: 'rizal park luneta manila tourist' },
-  { id: 'intramuros', name: 'Intramuros (Fort Santiago)', address: 'Sta. Lucia St, Intramuros, Manila', area: 'Manila', category: 'landmark', lat: 14.5888, lng: 120.9750, keywords: 'intramuros fort santiago manila historical walled city' },
-  { id: 'manila-cathedral', name: 'Manila Cathedral', address: 'Cabildo St, Intramuros, Manila', area: 'Manila', category: 'church', lat: 14.5924, lng: 120.9733, keywords: 'manila cathedral intramuros church wedding' },
-  { id: 'sm-manila', name: 'SM City Manila', address: 'Natividad Lopez St, Ermita, Manila', area: 'Manila', category: 'mall', lat: 14.5929, lng: 120.9812, keywords: 'sm manila mall city hall' },
-  { id: 'quiapo', name: 'Quiapo Church (Minor Basilica)', address: 'Plaza Miranda, Quiapo, Manila', area: 'Manila', category: 'church', lat: 14.5995, lng: 120.9822, keywords: 'quiapo church nazareno black nazarene manila' },
-  { id: 'binondo', name: 'Binondo Church & Chinatown', address: 'Ongpin St, Binondo, Manila', area: 'Manila', category: 'landmark', lat: 14.5995, lng: 120.9757, keywords: 'binondo chinatown ongpin manila food' },
-  { id: 'divisoria', name: 'Divisoria Market (168 Mall)', address: 'Soler St, Binondo, Manila', area: 'Manila', category: 'market', lat: 14.6066, lng: 120.9741, keywords: 'divisoria 168 mall wholesale manila market' },
-  { id: 'ust', name: 'University of Santo Tomas', address: 'España Blvd, Sampaloc, Manila', area: 'Manila', category: 'school', lat: 14.6130, lng: 120.9906, keywords: 'ust university santo tomas espana manila school' },
-  { id: 'manila-zoo', name: 'Manila Zoo', address: 'M. Orosa St, Malate, Manila', area: 'Manila', category: 'park', lat: 14.5697, lng: 120.9848, keywords: 'manila zoo malate park' },
-
-  { id: 'atc', name: 'Alabang Town Center', address: 'Commerce Ave, Alabang, Muntinlupa', area: 'Muntinlupa', category: 'mall', lat: 14.4167, lng: 121.0298, keywords: 'alabang town center atc muntinlupa mall' },
-  { id: 'festival', name: 'Festival Supermall', address: 'Filinvest City, Alabang, Muntinlupa', area: 'Muntinlupa', category: 'mall', lat: 14.4222, lng: 120.9902, keywords: 'festival mall filinvest alabang' },
+  { id: 'ayala-cebu', name: 'Ayala Center Cebu', address: 'Cebu Business Park, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.3182, lng: 123.9051, keywords: 'ayala center cebu business park mall shopping' },
+  { id: 'sm-cebu', name: 'SM City Cebu', address: 'North Reclamation Area, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.3116, lng: 123.9183, keywords: 'sm city cebu reclamation mall shopping' },
+  { id: 'sm-seaside', name: 'SM Seaside City Cebu', address: 'South Road Properties, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.282, lng: 123.8806, keywords: 'sm seaside srp mall shopping' },
+  { id: 'il-corso', name: 'Il Corso Lifestyle Mall', address: 'South Road Properties, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.2728, lng: 123.8838, keywords: 'il corso srp filinvest mall' },
+  { id: 'robinsons-galleria', name: 'Robinsons Galleria Cebu', address: 'Gen. Maxilom Ave Ext, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.3046, lng: 123.9122, keywords: 'robinsons galleria cebu mall' },
+  { id: 'jy-square', name: 'JY Square Mall', address: 'Salinas Dr cor Gorordo Ave, Lahug, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.3296, lng: 123.899, keywords: 'jy square lahug mall' },
+  { id: 'banilad-tc', name: 'Banilad Town Centre', address: 'Gov. M. Cuenco Ave, Banilad, Cebu City', area: 'Cebu City', category: 'mall', lat: 10.341, lng: 123.9097, keywords: 'banilad town centre btc mall' },
+  { id: 'it-park', name: 'Cebu IT Park', address: 'Lahug, Cebu City', area: 'Cebu City', category: 'office', lat: 10.3301, lng: 123.9058, keywords: 'it park lahug office bpo work ayala central bloc' },
+  { id: 'sugbo-mercado', name: 'Sugbo Mercado', address: 'IT Park, Lahug, Cebu City', area: 'Cebu City', category: 'food', lat: 10.3286, lng: 123.905, keywords: 'sugbo mercado food market it park' },
+  { id: 'waterfront-lahug', name: 'Waterfront Cebu City Hotel', address: 'Salinas Dr, Lahug, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.3262, lng: 123.904, keywords: 'waterfront hotel casino lahug' },
+  { id: 'marco-polo', name: 'Marco Polo Plaza Cebu', address: 'Nivel Hills, Lahug, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.3388, lng: 123.8962, keywords: 'marco polo plaza hotel nivel hills' },
+  { id: 'up-cebu', name: 'UP Cebu', address: 'Gorordo Ave, Lahug, Cebu City', area: 'Cebu City', category: 'school', lat: 10.3226, lng: 123.8984, keywords: 'up cebu university philippines lahug school' },
+  { id: 'usc-talamban', name: 'University of San Carlos (Talamban)', address: 'Nasipit, Talamban, Cebu City', area: 'Cebu City', category: 'school', lat: 10.3527, lng: 123.9131, keywords: 'usc talamban university san carlos school' },
+  { id: 'usc-downtown', name: 'University of San Carlos (Downtown)', address: 'P. del Rosario St, Cebu City', area: 'Cebu City', category: 'school', lat: 10.2998, lng: 123.8988, keywords: 'usc downtown university san carlos school' },
+  { id: 'fuente', name: 'Fuente Osmeña Circle', address: 'Osmeña Blvd, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.3106, lng: 123.8932, keywords: 'fuente osmena circle rotunda' },
+  { id: 'larsian', name: 'Larsian BBQ', address: 'Fuente Osmeña, Cebu City', area: 'Cebu City', category: 'food', lat: 10.311, lng: 123.8945, keywords: 'larsian bbq food fuente' },
+  { id: 'capitol', name: 'Cebu Provincial Capitol', address: 'Osmeña Blvd, Capitol Site, Cebu City', area: 'Cebu City', category: 'office', lat: 10.3168, lng: 123.8908, keywords: 'capitol cebu provincial government' },
+  { id: 'cdu-hospital', name: "Cebu Doctors' University Hospital", address: 'Osmeña Blvd, Capitol Site, Cebu City', area: 'Cebu City', category: 'hospital', lat: 10.3117, lng: 123.891, keywords: 'cebu doctors hospital cduh medical' },
+  { id: 'chong-hua', name: 'Chong Hua Hospital', address: 'Don Mariano Cui St, Fuente, Cebu City', area: 'Cebu City', category: 'hospital', lat: 10.3092, lng: 123.8912, keywords: 'chong hua hospital medical' },
+  { id: 'vsmmc', name: 'Vicente Sotto Memorial Medical Center', address: 'B. Rodriguez St, Cebu City', area: 'Cebu City', category: 'hospital', lat: 10.3076, lng: 123.8929, keywords: 'vicente sotto vsmmc hospital medical' },
+  { id: 'colon', name: 'Colon Street', address: 'Colon St, Downtown Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.2965, lng: 123.9005, keywords: 'colon street oldest street downtown' },
+  { id: 'carbon', name: 'Carbon Market', address: 'M.C. Briones St, Cebu City', area: 'Cebu City', category: 'market', lat: 10.2921, lng: 123.8985, keywords: 'carbon market palengke downtown' },
+  { id: 'santo-nino', name: 'Basilica Minore del Santo Niño', address: 'Osmeña Blvd, Cebu City', area: 'Cebu City', category: 'church', lat: 10.2943, lng: 123.9018, keywords: 'basilica santo nino church sinulog' },
+  { id: 'magellan', name: "Magellan's Cross", address: 'Magallanes St, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.2935, lng: 123.902, keywords: 'magellan cross historical tourist' },
+  { id: 'cathedral', name: 'Cebu Metropolitan Cathedral', address: 'P. Burgos St, Cebu City', area: 'Cebu City', category: 'church', lat: 10.2958, lng: 123.9025, keywords: 'cebu metropolitan cathedral church' },
+  { id: 'fort-san-pedro', name: 'Fort San Pedro', address: 'A. Pigafetta St, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.2925, lng: 123.9058, keywords: 'fort san pedro plaza independencia historical' },
+  { id: 'city-hall', name: 'Cebu City Hall', address: 'Plaza Sugbo, Cebu City', area: 'Cebu City', category: 'office', lat: 10.293, lng: 123.9015, keywords: 'cebu city hall government' },
+  { id: 'south-bus', name: 'Cebu South Bus Terminal', address: 'N. Bacalso Ave, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.2987, lng: 123.8935, keywords: 'south bus terminal ceres transport' },
+  { id: 'temple-leah', name: 'Temple of Leah', address: 'Roosevelt St, Busay, Cebu City', area: 'Cebu City', category: 'landmark', lat: 10.3708, lng: 123.8668, keywords: 'temple of leah busay tourist' },
+  { id: 'tops', name: 'Tops Lookout', address: 'Busay, Cebu City', area: 'Cebu City', category: 'park', lat: 10.372, lng: 123.8705, keywords: 'tops lookout busay view park' },
+  { id: 'parkmall', name: 'Parkmall', address: 'Ouano Ave, Mandaue City', area: 'Mandaue', category: 'mall', lat: 10.325, lng: 123.9335, keywords: 'parkmall mandaue mall' },
+  { id: 'j-centre', name: 'J Centre Mall', address: 'A.S. Fortuna St, Mandaue City', area: 'Mandaue', category: 'mall', lat: 10.3358, lng: 123.9215, keywords: 'j centre mall mandaue' },
+  { id: 'north-bus', name: 'Cebu North Bus Terminal', address: 'Subangdaku, Mandaue City', area: 'Mandaue', category: 'landmark', lat: 10.3329, lng: 123.9301, keywords: 'north bus terminal transport' },
+  { id: 'mactan-airport', name: 'Mactan-Cebu International Airport', address: 'Lapu-Lapu City', area: 'Lapu-Lapu', category: 'airport', lat: 10.3077, lng: 123.9793, keywords: 'airport mactan mcia terminal flight' },
 ];
 
 /* ---------- Ride categories & fare model ---------- */
@@ -96,8 +78,8 @@ export const RIDE_CATEGORIES = [
 
 export const PAYMENT_METHODS = [
   { id: 'cash', name: 'Cash', sub: 'Pay the rider directly at the end of your trip', logo: 'Cash', logoBg: 'var(--c-surface-2)', logoFg: 'var(--c-ink-2)', icon: 'banknote' },
-  { id: 'gcash', name: 'GCash', sub: 'Auto-charge your GCash wallet', logo: 'GCash', logoBg: '#DFF3E1', logoFg: '#166534', icon: 'smartphone' },
-  { id: 'maya', name: 'Maya', sub: 'Auto-charge your Maya wallet', logo: 'Maya', logoBg: '#E5F1FB', logoFg: '#155E93', icon: 'credit-card' },
+  { id: 'gcash', name: 'GCash', sub: 'Auto-charge your GCash wallet', logo: 'GCash', logoBg: '#DFF3E1', logoFg: '#166534', icon: 'smartphone', mark: 'assets/pay/gcash.svg' },
+  { id: 'maya', name: 'Maya', sub: 'Auto-charge your Maya wallet', logo: 'Maya', logoBg: '#E5F1FB', logoFg: '#155E93', icon: 'credit-card', mark: 'assets/pay/maya.svg' },
 ];
 
 export const PROMOS = [
@@ -129,38 +111,79 @@ export const DEMO_PASSENGERS = [
 ];
 
 /* ---------- In-app copy ---------- */
-export const QUICK_MSGS_PASSENGER = [
-  "I'm at the pickup location.",
-  "I'm wearing a black shirt.",
-  'Please wait a moment.',
-  "I'm near the entrance.",
-  'Sa gate po ako.',
-  'Almost done, 1 minute please.',
-];
+/* ---------- Trip chat ----------
+   Quick replies follow the trip stage and use the trip's own details (car,
+   plate, pickup), so nothing names a road or place the user isn't at. Plain
+   English with a little everyday Cebuano, the way riders and passengers text
+   in Cebu: polite and practical, never familial (they are strangers). */
+const CHAT_PHASE = { accepted: 'approach', arriving: 'approach', arrived: 'pickup', in_progress: 'trip', completed: 'done' };
+export function chatPhase(status) { return CHAT_PHASE[status] || 'approach'; }
 
-export const QUICK_MSGS_RIDER = [
-  "On my way po.",
-  "I'm near the pickup point.",
-  'Please wait a moment po.',
-  'Traffic po sa EDSA, slight delay.',
-  "I've arrived. I'm parked on the right side.",
-  'Ingat po tayong lahat.',
-];
+function carOf(b) {
+  const v = (b && b.rider && b.rider.vehicle) || {};
+  return { car: [v.color, v.model].filter(Boolean).join(' '), plate: v.plate || '' };
+}
 
-export const SIM_DRIVER_REPLIES = [
-  "On my way po.",
-  "I'm just around the corner.",
-  'Please wait a moment po, traffic is a bit heavy.',
-  "I'm here po. I'm wearing a green shirt.",
-  'Sige po, noted!',
-];
+export function quickReplies(role, b) {
+  const { car, plate } = carOf(b);
+  const lines = {
+    rider: {
+      approach: ['On my way to your pickup now.', 'Padulong na ko. See you soon.', 'Traffic is heavy on the way, I may be a few minutes late.', 'Where exactly are you waiting?', 'Is the pickup pin correct?'],
+      pickup: ["I'm here at the pickup.", car ? `I'm in the ${car}${plate ? `, plate ${plate}` : ''}.` : null, "Take your time, I'll wait here.", "I can't stop right here, I'll wait just ahead.", 'Naa na ko sa pickup.'],
+      trip: ['Where exactly should I drop you off?', 'Is this route okay with you?', "We're almost there."],
+      done: ['Thanks for riding! Please check you have all your things.', 'Salamat! Have a good day.'],
+    },
+    passenger: {
+      approach: ["I'm at the pickup point.", "I'll be there in 2 minutes.", "I'm at the main entrance.", "Please message me when you're near.", 'Can you pick me up at the gate instead?'],
+      pickup: ['Coming out now!', 'I can see you.', 'Kadiyot lang, 1 minute please.', 'Where exactly are you parked?'],
+      trip: ['Can you drop me off at the entrance?', 'You can drop me here, thanks.', 'Please take the fastest route.'],
+      done: ['Thank you!', 'Salamat sa safe ride!'],
+    },
+  };
+  return ((lines[role] || lines.passenger)[chatPhase(b && b.status)] || []).filter(Boolean);
+}
 
-export const SIM_PASSENGER_REPLIES = [
-  "I'm at the pickup location.",
-  'Please wait a moment.',
-  "I'm near the entrance po.",
-  'Sige po, thank you!',
-];
+/* What the simulated other side writes back: it answers the message it got
+   (first matching rule wins, so the order below matters). */
+export function simChatReply(from, text, b) {
+  const t = String(text || '').toLowerCase();
+  // whole words only: "plate" must not count as "late"
+  // (the keywords below are plain words, so they need no regex escaping)
+  const has = (...words) => words.some((w) => new RegExp(`\\b${w}\\b`).test(t));
+  const phase = chatPhase(b && b.status);
+  const { car, plate } = carOf(b);
+  const pickup = (b && b.pickup && b.pickup.name) || 'the pickup';
+  if (from === 'passenger') { // the driver answers the passenger
+    if (has('thank', 'salamat')) return "You're welcome!";
+    if (phase === 'trip') return has('route', 'fastest') ? "Sure, I'll take the fastest way." : 'Sure, noted.';
+    if (phase === 'done') return 'Salamat! Have a good day.';
+    if (has('where', 'asa')) {
+      return phase === 'pickup'
+        ? `I'm parked right at the pickup${car ? `, ${car}` : ''}${plate ? ` (${plate})` : ''}.`
+        : `I'm close to ${pickup}. I'll message you when I'm there.`;
+    }
+    if (has('gate', 'entrance', 'instead')) return "Okay, I'll go there.";
+    if (has('minute', 'wait', 'kadiyot')) return "Sure, no rush. I'll wait.";
+    if (has('message me', 'call')) return "Sure, I'll message you when I'm close.";
+    if (has('see you', 'coming', 'can see')) return 'Okay, see you!';
+    return phase === 'approach' ? 'Noted. On my way.' : "Okay, I'm waiting here.";
+  }
+  // the passenger answers the driver
+  if (has('thank', 'salamat')) return 'Thank you too!';
+  if (has('drop')) return 'At the main entrance is fine, thanks.';
+  if (has('route')) return 'Yes, that route is fine.';
+  if (has('almost there')) return 'Okay, thanks!';
+  if (has('where')) return `I'm at the main entrance of ${pickup}.`;
+  if (has('pin')) return 'Yes, the pin is correct.';
+  if (has('late', 'traffic')) return 'No problem, take your time.';
+  if (has("i'm here", 'naa na', "i'm in the", 'at the pickup')) return 'Okay, coming out now!';
+  if (has('wait', 'stop', 'ahead')) return "Okay, I'll walk over. Thanks!";
+  return 'Okay, thanks!';
+}
+
+export function simGreeting(b) {
+  return `Hi! I'm on my way to ${(b && b.pickup && b.pickup.name) || 'your pickup'}.`;
+}
 
 export const COMPLIMENTS = [
   'Expert navigation', 'Great conversation', 'Safe driving',
@@ -177,11 +200,12 @@ export const FAQS = [
 ];
 
 export const NAV_STREETS = [
-  'Ayala Avenue', 'EDSA', 'C5 Road', 'Commonwealth Avenue', 'Quezon Avenue',
-  'España Boulevard', 'Taft Avenue', 'Roxas Boulevard', 'Katipunan Avenue',
-  'Shaw Boulevard', 'Bonifacio Drive', 'Jupiter Street', 'Kalayaan Avenue',
-  'Meralco Avenue', 'San Miguel Avenue', 'North Avenue', 'Quirino Highway',
-  'Chino Roces Avenue', 'Delaware Street', 'Seaside Boulevard',
+  'Osmeña Boulevard', 'Gorordo Avenue', 'Escario Street', 'N. Bacalso Avenue',
+  'Gen. Maxilom Avenue', 'Archbishop Reyes Avenue', 'Juan Luna Avenue',
+  'A.S. Fortuna Street', 'M.J. Cuenco Avenue', 'Gov. M. Cuenco Avenue',
+  'Salinas Drive', 'Colon Street', 'P. del Rosario Street', 'V. Rama Avenue',
+  'UN Avenue', 'Banilad Road', 'Pope John Paul II Avenue', 'Cebu South Coastal Road',
+  'Ouano Avenue', 'Mandaue-Mactan Bridge',
 ];
 
 /* ---------- Geo + pricing helpers ---------- */
@@ -198,7 +222,7 @@ export function haversineKm(a, b) {
 }
 
 export function estimateDurationMin(km) {
-  // Metro Manila city driving average ~ 18-22 km/h effective + fixed pickup/load time
+  // Metro Cebu city driving average ~ 18-22 km/h effective + fixed pickup/load time
   return Math.max(6, Math.round(km * 3 + 5));
 }
 
@@ -215,6 +239,15 @@ export function estimateFare(categoryId, distanceKm, durationMin) {
     categoryId: cat.id, km, mins, base, distance, duration, platformFee,
     subtotal, discount: 0, total: subtotal, promoCode: null,
   };
+}
+
+/* Platform commission — the ONE place the rider's cut is computed, so the
+   request sheet, trip summary, history and earnings ledger always agree. */
+export const COMMISSION_RATE = 0.2;
+export function riderShare(fareTotal) {
+  const gross = Number(fareTotal) || 0;
+  const commission = Math.round(gross * COMMISSION_RATE);
+  return { gross, commission, net: gross - commission };
 }
 
 export function applyPromo(fare, promo) {
@@ -252,7 +285,7 @@ export function searchPlaces(query, limit = 8) {
 }
 
 /* maxKm: skip places farther than this. The built-in list only covers
-   Metro Manila, so callers outside Manila pass a limit to avoid
+   Metro Cebu, so callers outside Cebu pass a limit to avoid
    "nearby" suggestions hundreds of kilometres away. */
 export function nearbyPlaces(latlng, limit = 6, maxKm = Infinity) {
   return PLACES
@@ -355,8 +388,8 @@ export function navSteps(route, destName) {
 
 /* ---------- Default passenger seed data ---------- */
 export const DEFAULT_SAVED_PLACES = (userId) => [
-  { id: 'sp-home-' + userId, label: 'Home', icon: 'house', placeId: 'qmc', name: 'Quezon Memorial Circle', address: 'Elliptical Rd, Diliman, Quezon City', lat: 14.6489, lng: 121.0494 },
-  { id: 'sp-work-' + userId, label: 'Work', icon: 'briefcase', placeId: 'ayala-ave', name: 'Ayala Avenue (PBCOM Tower)', address: 'Ayala Ave, Bel-Air, Makati City', lat: 14.5587, lng: 121.0196 },
+  { id: 'sp-home-' + userId, label: 'Home', icon: 'house', placeId: 'banilad-tc', name: 'Banilad Town Centre', address: 'Gov. M. Cuenco Ave, Banilad, Cebu City', lat: 10.3410, lng: 123.9097 },
+  { id: 'sp-work-' + userId, label: 'Work', icon: 'briefcase', placeId: 'it-park', name: 'Cebu IT Park', address: 'Lahug, Cebu City', lat: 10.3301, lng: 123.9058 },
 ];
 
 export const DEFAULT_DEMO_PASSENGER_PROFILE = {
@@ -411,8 +444,8 @@ export function seededEarnings(days = 30) {
       date: d.getTime(),
       trips,
       gross: Math.round(gross),
-      commission: Math.round(gross * 0.2),
-      net: Math.round(gross * 0.8),
+      commission: riderShare(gross).commission,
+      net: riderShare(gross).net,
       onlineMin: Math.round(240 + rand() * 180),
       distanceKm: Math.round(trips * (4.5 + rand() * 4)),
     });

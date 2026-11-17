@@ -9,7 +9,7 @@
    GPS tracking.
    ========================================================================== */
 import { Bookings, Bus, Notifs, Msgs, Session, Prefs } from '../storage.js';
-import { DEMO_DRIVERS, DEMO_PASSENGERS, SIM_DRIVER_REPLIES, SIM_PASSENGER_REPLIES, generateRoute, haversineKm, pointAtDistance, routeLengthKm, PLACES } from '../data.js';
+import { DEMO_DRIVERS, DEMO_PASSENGERS, simChatReply, simGreeting, generateRoute, haversineKm, pointAtDistance, routeLengthKm, PLACES, riderShare } from '../data.js';
 
 const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.round(rand(min, max));
@@ -48,14 +48,15 @@ function assignSimDriver(bookingId, driver) {
   const b = Bookings.byId(bookingId);
   if (!b || b.status !== 'searching') return;
   const eta = randInt(14, 22); // seconds of simulated approach
-  Bookings.update(bookingId, {
+  const assigned = Bookings.update(bookingId, {
     status: 'accepted',
     riderId: driver.id,
     riderSource: 'simulation',
     rider: { id: driver.id, name: driver.name, phone: driver.phone, rating: driver.rating, avatar: driver.avatar, vehicle: driver.vehicle, trips: driver.trips },
     pickupEtaSec: eta,
     tripEtaSec: Math.max(22, Math.round((b.durationMin / 60) * 60 * 0.22)), // compressed trip
-  }, { by: 'simulation' });
+  }, { by: 'simulation', expect: ['searching'] });
+  if (!assigned) return; // a live rider took it (or it was cancelled) first
 
   Notifs.push({
     userId: b.passengerId, role: 'passenger',
@@ -69,7 +70,7 @@ function assignSimDriver(bookingId, driver) {
   const tMsg = setTimeout(() => {
     const cur = Bookings.byId(bookingId);
     if (!cur || cur.status === 'completed' || cur.status === 'cancelled') return;
-    Msgs.append(bookingId, { from: 'rider', fromName: driver.firstName, text: SIM_DRIVER_REPLIES[0] });
+    Msgs.append(bookingId, { from: 'rider', fromName: driver.firstName, text: simGreeting(cur) });
   }, 2500);
   pending.push(tMsg);
 
@@ -122,7 +123,7 @@ function scheduleCompletion(bookingId, driver) {
 /* Finalizes a completed trip: receipt, payment, notifications. */
 export function completeTrip(bookingId, { by = 'rider' } = {}) {
   const b = Bookings.byId(bookingId);
-  if (!b || b.status === 'completed') return null;
+  if (!b || b.status !== 'in_progress') return null; // only a started trip can be completed (and paid) — once
   const paidNow = Date.now();
   const methodLabel = { cash: 'Cash', gcash: 'GCash', maya: 'Maya' }[b.payment.method] || b.payment.method;
   const updated = Bookings.update(bookingId, {
@@ -136,7 +137,8 @@ export function completeTrip(bookingId, { by = 'rider' } = {}) {
       durationMin: b.durationMin,
       ref: b.ref,
     },
-  }, { by });
+  }, { by, expect: ['in_progress'] });
+  if (!updated) return null;
 
   clearTimers(bookingId);
 
@@ -150,7 +152,7 @@ export function completeTrip(bookingId, { by = 'rider' } = {}) {
     Notifs.push({
       userId: updated.riderId, role: 'rider',
       title: 'Trip completed',
-      body: `Fare ₱${updated.fare.total} · net earnings ₱${(updated.fare.total * 0.8).toFixed(0)}.`,
+      body: `Fare ₱${updated.fare.total} · net earnings ₱${riderShare(updated.fare.total).net}.`,
       icon: 'circle-check', tone: 'success',
     });
   }
@@ -180,7 +182,8 @@ export function acceptRequest(booking, riderProfile) {
     },
     pickupEtaSec: eta,
     tripEtaSec: Math.max(24, Math.round((booking.durationMin / 60) * 60 * 0.24)),
-  }, { by: 'rider' });
+  }, { by: 'rider', expect: ['searching'] });
+  if (!updated) return null; // someone else got it first, or the passenger cancelled
 
   Notifs.push({
     userId: updated.passengerId, role: 'passenger',
@@ -217,6 +220,7 @@ export function riderStatusAdvance(bookingId, nextStatus) {
   // never marked paid and had no receipt.
   if (nextStatus === 'completed') return completeTrip(bookingId, { by: 'rider' });
   const updated = Bookings.update(bookingId, { status: nextStatus }, { by: 'rider' });
+  if (!updated) return null; // not a valid next step (e.g. the passenger cancelled meanwhile)
 
   const notes = {
     arriving: { title: 'Rider is on the way', body: `${b.rider ? b.rider.name : 'Your rider'} is heading to your pickup point.`, icon: 'navigation' },
@@ -241,9 +245,11 @@ export function riderStatusAdvance(bookingId, nextStatus) {
 /* ---------- Passenger actions ---------- */
 export function passengerCancel(bookingId, reason = '') {
   const b = Bookings.byId(bookingId);
-  if (!b) return;
+  if (!b) return null;
+  // refused once the trip has started or finished (see BOOKING_TRANSITIONS)
+  const updated = Bookings.update(bookingId, { status: 'cancelled' }, { by: 'passenger' });
+  if (!updated) return null;
   clearTimers(bookingId);
-  Bookings.update(bookingId, { status: 'cancelled' }, { by: 'passenger' });
   if (b.riderId) {
     Notifs.push({
       userId: b.riderId, role: 'rider',
@@ -252,6 +258,7 @@ export function passengerCancel(bookingId, reason = '') {
       icon: 'circle-x', tone: 'danger',
     });
   }
+  return updated;
 }
 
 /* ---------- Chat simulation fallbacks ---------- */
@@ -260,28 +267,22 @@ Bus.subscribe('msg:new', ({ bookingId, msg }) => {
   if (!b) return;
   const session = Session.get();
   // If the passenger (this user) messaged a SIM driver, auto-reply
+  // (a real person answers what was asked, so every message gets a reply)
   if (msg.from === 'passenger' && b.riderSource === 'simulation' && session && session.userId === b.passengerId) {
-    if (Math.random() < 0.75) {
-      const driver = DEMO_DRIVERS.find((d) => d.id === b.riderId);
-      setTimeout(() => {
-        const cur = Bookings.byId(bookingId);
-        if (!cur || ['completed', 'cancelled'].includes(cur.status)) return;
-        const text = SIM_DRIVER_REPLIES[randInt(0, SIM_DRIVER_REPLIES.length - 1)];
-        Msgs.append(bookingId, { from: 'rider', fromName: driver ? driver.firstName : 'Rider', text });
-      }, randInt(1800, 3600));
-    }
+    const driver = DEMO_DRIVERS.find((d) => d.id === b.riderId);
+    setTimeout(() => {
+      const cur = Bookings.byId(bookingId);
+      if (!cur || cur.status === 'cancelled') return;
+      Msgs.append(bookingId, { from: 'rider', fromName: driver ? driver.firstName : 'Rider', text: simChatReply('passenger', msg.text, cur) });
+    }, randInt(1800, 3600));
   }
   // If a rider (this user) messaged a SIM passenger, auto-reply
   if (msg.from === 'rider' && session && session.userId === b.riderId) {
-    const passengerTabLive = false; // assume absent; replies keep demo lively
-    if (Math.random() < 0.6) {
-      setTimeout(() => {
-        const cur = Bookings.byId(bookingId);
-        if (!cur || ['completed', 'cancelled'].includes(cur.status)) return;
-        const text = SIM_PASSENGER_REPLIES[randInt(0, SIM_PASSENGER_REPLIES.length - 1)];
-        Msgs.append(bookingId, { from: 'passenger', fromName: cur.passengerName.split(' ')[0], text });
-      }, randInt(2000, 4200));
-    }
+    setTimeout(() => {
+      const cur = Bookings.byId(bookingId);
+      if (!cur || cur.status === 'cancelled') return;
+      Msgs.append(bookingId, { from: 'passenger', fromName: cur.passengerName.split(' ')[0], text: simChatReply('rider', msg.text, cur) });
+    }, randInt(2000, 4200));
   }
 });
 
@@ -292,10 +293,14 @@ export function cleanupBookingTimers(bookingId) { clearTimers(bookingId); }
    rides, which would strand bookings in accepted/arriving/in_progress forever.
    Called once at app boot: any simulation-owned booking gets its remaining
    timeline rescheduled from the stored timestamps. */
-export function resumeSimTrips() {
+export function resumeSimTrips(user = null) {
+  // A ride still `searching` has no rider yet (riderSource is null), so it is
+  // matched on status + owner instead: only the passenger's own tab restarts
+  // the search, and rider-created test requests are never auto-assigned.
+  const me = user && user.role === 'passenger' ? user.id : null;
   const simActive = Bookings.all().filter((b) =>
-    b.riderSource === 'simulation'
-    && ['searching', 'accepted', 'arriving', 'in_progress'].includes(b.status));
+    (b.status === 'searching' && !b.riderId && !b.testRequest && b.passengerId === me)
+    || (b.riderSource === 'simulation' && ['accepted', 'arriving', 'in_progress'].includes(b.status)));
   simActive.forEach((b) => {
     clearTimers(b.id);
     if (b.status === 'searching') {

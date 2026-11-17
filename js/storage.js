@@ -33,9 +33,16 @@ export const Store = {
       if (storageOk) localStorage.setItem(NS + key, raw);
       else memory[NS + key] = raw;
     } catch (e) {
-      /* quota exceeded — drop oldest notifications to survive */
+      /* quota exceeded — drop notifications (the only disposable data) and
+         retry once. If it still fails the write is LOST: say so loudly rather
+         than letting the caller believe a booking or payment was saved. */
+      let saved = false;
       if (storageOk) {
-        try { localStorage.removeItem(NS + 'notifications'); localStorage.setItem(NS + key, JSON.stringify(value)); } catch (e2) {}
+        try { localStorage.removeItem(NS + 'notifications'); localStorage.setItem(NS + key, JSON.stringify(value)); saved = true; } catch (e2) { /* still full */ }
+      }
+      if (!saved) {
+        console.error('[store] write failed, data not saved:', key, e);
+        try { window.dispatchEvent(new CustomEvent('lakbay:storage-error', { detail: { key } })); } catch (e3) { /* no window */ }
       }
     }
     return value;
@@ -56,6 +63,18 @@ export const Store = {
    storage events when BroadcastChannel is unavailable. */
 const listeners = new Map(); // topic -> Set<fn>
 
+/* Every event carries a unique id. Other tabs receive each event twice (once
+   on BroadcastChannel, once through the storage mirror), so receivers drop
+   ids they have already handled. */
+const seenEvents = new Set();
+function firstTime(id) {
+  if (!id) return true; // events from an older tab without ids
+  if (seenEvents.has(id)) return false;
+  seenEvents.add(id);
+  if (seenEvents.size > 500) seenEvents.delete(seenEvents.values().next().value);
+  return true;
+}
+
 function localEmit(topic, payload) {
   const set = listeners.get(topic);
   if (set) set.forEach((fn) => {
@@ -68,7 +87,7 @@ try {
   if (typeof BroadcastChannel !== 'undefined') {
     bc = new BroadcastChannel('lakbay-sim');
     bc.onmessage = (ev) => {
-      if (ev && ev.data && ev.data.topic) localEmit(ev.data.topic, ev.data.payload);
+      if (ev && ev.data && ev.data.topic && firstTime(ev.data.id)) localEmit(ev.data.topic, ev.data.payload);
     };
   }
 } catch (e) { bc = null; }
@@ -77,14 +96,15 @@ try {
 window.addEventListener('storage', (ev) => {
   if (!ev.key || !ev.key.startsWith(NS + 'bus:')) return;
   try {
-    const { topic, payload } = JSON.parse(ev.newValue || '{}');
-    if (topic) localEmit(topic, payload);
+    const { topic, payload, id } = JSON.parse(ev.newValue || '{}');
+    if (topic && firstTime(id)) localEmit(topic, payload);
   } catch (e) {}
 });
 
 export const Bus = {
   publish(topic, payload = {}) {
-    const env = { topic, payload, t: Date.now() };
+    const env = { id: 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9), topic, payload, t: Date.now() };
+    seenEvents.add(env.id);
     if (bc) { try { bc.postMessage(env); } catch (e) {} }
     try { if (storageOk) localStorage.setItem(NS + 'bus:' + topic + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 7), JSON.stringify(env)); } catch (e) {}
     localEmit(topic, payload);
@@ -192,6 +212,26 @@ export const Session = {
      pickupEtaSec, tripEtaSec, createdAt, scheduledFor,
      messages:[], rating:{stars,compliments,comment}|null, receipt:null }
    Statuses: scheduled | searching | accepted | arriving | arrived | in_progress | completed | cancelled | expired */
+/* The ride lifecycle. A status may only move along these edges; everything
+   else (completing a ride that never started, cancelling a paid trip,
+   accepting a cancelled request) is rejected by Bookings.update. */
+export const BOOKING_TRANSITIONS = {
+  scheduled: ['searching', 'cancelled'],
+  searching: ['accepted', 'cancelled', 'expired'],
+  accepted: ['arriving', 'arrived', 'cancelled'],
+  arriving: ['arrived', 'cancelled'],
+  arrived: ['in_progress', 'cancelled'],
+  in_progress: ['completed'],
+  completed: [],
+  cancelled: [],
+  expired: [],
+};
+const TERMINAL = ['completed', 'cancelled', 'expired'];
+/* Once a booking is finished its money and assignment are a record, not state */
+const FROZEN_WHEN_TERMINAL = ['fare', 'payment', 'receipt', 'riderId', 'rider', 'passengerId', 'pickup', 'dropoff'];
+const MAX_BOOKINGS = 120;   // soft cap, enforced only against disposable records
+const FULL_DETAIL_TRIPS = 30; // newest completed trips keep their route + chat
+
 export const Bookings = {
   all() { return Store.get('bookings', []); },
   byId(id) { return Bookings.all().find((b) => b.id === id) || null; },
@@ -202,18 +242,52 @@ export const Bookings = {
   },
   anySearching() { return Bookings.all().find((b) => b.status === 'searching') || null; },
   create(booking) {
-    const all = Bookings.all();
+    let all = Bookings.all();
     all.unshift(booking);
-    if (all.length > 120) all.length = 120; // keep storage bounded
+    // Keep storage bounded WITHOUT deleting records that matter. Completed
+    // trips are the passenger's history and the rider's earnings ledger and
+    // active rides are live, so only cancelled/expired ones are dropped
+    // (oldest first); old completed trips just lose their bulky route + chat.
+    if (all.length > MAX_BOOKINGS) {
+      let over = all.length - MAX_BOOKINGS;
+      for (let i = all.length - 1; i >= 0 && over > 0; i--) {
+        if (all[i].status === 'cancelled' || all[i].status === 'expired') { all.splice(i, 1); over--; }
+      }
+      let kept = 0;
+      all = all.map((b) => {
+        if (b.status !== 'completed') return b;
+        kept += 1;
+        return kept > FULL_DETAIL_TRIPS && (b.route || (b.messages && b.messages.length)) ? { ...b, route: [], messages: [] } : b;
+      });
+    }
     Store.set('bookings', all);
     return booking;
   },
-  update(id, patch, { publish = true, by = 'system' } = {}) {
+  /* Guarded write. Always re-reads the stored booking first, so the checks run
+     against the latest state every tab shares. Returns the updated booking, or
+     null when the change is refused:
+       - `expect` (optional): the booking must currently be in one of these
+         statuses (compare-and-set, e.g. only a `searching` ride can be accepted)
+       - a status change must follow BOOKING_TRANSITIONS
+       - the assigned rider can never be swapped for another
+       - a finished booking's fare, payment, receipt and parties are frozen */
+  update(id, patch, { publish = true, by = 'system', expect = null } = {}) {
     const all = Bookings.all();
     const idx = all.findIndex((b) => b.id === id);
     if (idx < 0) return null;
-    const prevStatus = all[idx].status;
-    const next = { ...all[idx], ...patch, id };
+    const prev = all[idx];
+    const prevStatus = prev.status;
+    const refuse = (why) => { console.warn(`[bookings] refused ${id} (${prevStatus}): ${why}`); return null; };
+    if (expect && !expect.includes(prevStatus)) return refuse(`expected ${expect.join('/')}`);
+    if (patch.status && patch.status !== prevStatus && !(BOOKING_TRANSITIONS[prevStatus] || []).includes(patch.status)) {
+      return refuse(`cannot go to ${patch.status}`);
+    }
+    if ('riderId' in patch && prev.riderId && patch.riderId !== prev.riderId) return refuse('already assigned to another rider');
+    if (TERMINAL.includes(prevStatus)) {
+      const frozen = FROZEN_WHEN_TERMINAL.find((k) => k in patch && JSON.stringify(patch[k]) !== JSON.stringify(prev[k]));
+      if (frozen) return refuse(`${frozen} is frozen`);
+    }
+    const next = { ...prev, ...patch, id };
     if (patch.status && patch.status !== prevStatus) {
       next.timeline = [...(next.timeline || []), { status: patch.status, at: Date.now(), by }];
     }
@@ -322,6 +396,16 @@ export function ensureSeeded() {
 
 /* Async first-run seeding (call once from app.js boot) */
 export async function seedDemoAccounts() {
+  // v2: the demo data moved from Metro Manila to Cebu. Once per browser, drop
+  // the stored Manila seed trips and the demo passenger's sample places so
+  // they re-seed in Cebu. Real users' own trips and places are untouched.
+  if (Store.get('demoDataVersion', 1) < 2) {
+    Store.set('bookings', Bookings.all().filter((b) => !String(b.id).startsWith('seed-')));
+    Prefs.set('demo-passenger', 'savedPlaces', null);
+    Prefs.set('demo-passenger', 'recentPlaces', []);
+    Store.set('demoDataVersion', 2);
+    Store.set('demoAccountsReady', false);
+  }
   if (Store.get('demoAccountsReady', false)) return;
   const users = Users.all().filter((u) => u.id !== 'demo-passenger' && u.id !== 'demo-rider');
   Store.set('users', users);
@@ -338,14 +422,14 @@ export async function seedDemoAccounts() {
   Store.set('users', riders);
 
   // Pre-seed a couple of completed bookings for the demo passenger history
-  if (Bookings.all().length === 0) {
+  if (!Bookings.all().some((b) => String(b.id).startsWith('seed-'))) {
     const data = await import('./data.js');
     const { generateRoute, estimateDurationMin, estimateFare, getPlace, haversineKm, DEMO_DRIVERS } = data;
     const now = Date.now();
     const seeds = [
-      { from: 'qmc', to: 'bgc-hs', cat: 'car', daysAgo: 6, driver: 'drv-jun' },
-      { from: 'greenbelt', to: 'moa', cat: 'premium', daysAgo: 13, driver: 'drv-dennis' },
-      { from: 'sm-north', to: 'uptc', cat: 'moto', daysAgo: 21, driver: 'drv-carlo' },
+      { from: 'it-park', to: 'ayala-cebu', cat: 'car', daysAgo: 6, driver: 'drv-jun' },
+      { from: 'sm-seaside', to: 'fuente', cat: 'premium', daysAgo: 13, driver: 'drv-dennis' },
+      { from: 'usc-talamban', to: 'sm-cebu', cat: 'moto', daysAgo: 21, driver: 'drv-carlo' },
     ];
     const seeded = seeds.map((s, i) => {
       const a = getPlace(s.from), b = getPlace(s.to);
@@ -376,7 +460,7 @@ export async function seedDemoAccounts() {
         receipt: { paidAt: at + mins * 60000, method: i === 0 ? 'GCash' : 'Cash' },
       };
     });
-    Store.set('bookings', seeded);
+    Store.set('bookings', [...seeded, ...Bookings.all()]);
   }
   Store.set('demoAccountsReady', true);
 }
