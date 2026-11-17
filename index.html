@@ -24,11 +24,13 @@
   <link rel="stylesheet" href="css/components.css" />
   <link rel="stylesheet" href="css/landing.css" />
   <script src="vendor/lucide.min.js"></script>
+  <script src="vendor/lenis.min.js" defer></script>
 </head>
 <body>
   <!-- All landing + auth views are rendered into #auth-root by js/auth/main.js -->
   <div id="auth-root"></div>
-  <script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {}); }); }</script>
+  <!-- Offline service worker in production only; on localhost it would serve cached files while you edit, so remove any old one -->
+  <script>if ('serviceWorker' in navigator) { var dev = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname); window.addEventListener('load', function () { if (dev) { navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }); if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); } else { navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {}); } }); }</script>
   <script type="module" src="js/auth/main.js"></script>
 </body>
 </html>

@@ -31,15 +31,25 @@ function track(target, event, fn, opts) {
   landingOff.push(() => target.removeEventListener(event, fn, opts));
 }
 
-/* Jump to a landing section below the sticky header. Uses the browser's own
-   smooth scroll for clicked links only (instant when reduced motion is on);
-   wheel/trackpad scrolling is never intercepted. */
+/* Smooth scrolling (Lenis, vendor/lenis.min.js) — the landing page only.
+   Wheel and trackpad glide and ease out; touch, keyboard and the scrollbar
+   stay native; off with reduced motion. Torn down on every route change. */
+let lenis = null;
+function startSmoothScroll() {
+  if (lenis || prefersReducedMotion() || typeof window.Lenis !== 'function') return;
+  lenis = new window.Lenis({ autoRaf: true, lerp: 0.1, smoothWheel: true });
+  landingOff.push(() => { lenis.destroy(); lenis = null; });
+}
+function scrollToY(top) {
+  if (lenis) { lenis.scrollTo(top, { duration: 1.2 }); return; }
+  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+}
+
+/* Jump to a landing section below the sticky header. */
 function scrollToSection(selector) {
   const t = qs(selector);
   if (!t) return;
-  const top = t.getBoundingClientRect().top + window.scrollY - 68;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+  scrollToY(t.getBoundingClientRect().top + window.scrollY - 68);
 }
 
 /* ---------- router ---------- */
@@ -309,6 +319,128 @@ function mapArt({ theme = 'light', size = 'tall', route, mover = null, travelled
   return wrap;
 }
 
+/* ---------- cartographic backgrounds (Journey + Drive) ----------
+   Decorative, aria-hidden SVG built once from a fixed seed, so the "city"
+   is identical on every visit. Same stroke language for both sections,
+   different compositions:
+     journey — dense warped street districts, arterials, contours, and the
+               lime route that draws itself as the story advances
+     drive   — broad highway geometry with lane markings, an interchange,
+               a sparse district and one lime lane leading to the rider */
+function seeded(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+/* A street district: a jittered grid bent by two slow waves, rotated, with
+   ~`keep` of its segments drawn — irregular blocks, dead ends, no grid look. */
+function district(r, { cx, cy, w, h, angle, step, keep }) {
+  const cols = Math.round(w / step); const rows = Math.round(h / step);
+  const a = (angle * Math.PI) / 180; const ca = Math.cos(a); const sa = Math.sin(a);
+  const nodes = [];
+  for (let i = 0; i <= cols; i++) {
+    nodes[i] = [];
+    for (let j = 0; j <= rows; j++) {
+      let x = (i - cols / 2) * step + (r() - 0.5) * step * 0.42;
+      let y = (j - rows / 2) * step + (r() - 0.5) * step * 0.42;
+      y += Math.sin(x / 150) * 20; x += Math.sin(y / 190) * 16;
+      nodes[i][j] = [cx + x * ca - y * sa, cy + x * sa + y * ca];
+    }
+  }
+  let d = '';
+  const seg = (p, q) => { d += `M${p[0].toFixed(1)} ${p[1].toFixed(1)}L${q[0].toFixed(1)} ${q[1].toFixed(1)}`; };
+  for (let i = 0; i <= cols; i++) {
+    for (let j = 0; j <= rows; j++) {
+      if (i < cols && r() < keep) seg(nodes[i][j], nodes[i + 1][j]);
+      if (j < rows && r() < keep * 0.9) seg(nodes[i][j], nodes[i][j + 1]);
+    }
+  }
+  return d;
+}
+/* Wobbly closed contour around a point (topographic rings) */
+function contour(r, cx, cy, rad, wobble) {
+  const pts = [];
+  for (let k = 0; k < 18; k++) {
+    const t = (k / 18) * Math.PI * 2;
+    const rr = rad * (1 + (r() - 0.5) * wobble);
+    pts.push([cx + Math.cos(t) * rr * 1.25, cy + Math.sin(t) * rr]);
+  }
+  // smooth closed curve through the points (quadratic midpoints)
+  let d = '';
+  pts.forEach((p, k) => {
+    const q = pts[(k + 1) % pts.length];
+    const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    d += k === 0 ? `M${m[0].toFixed(1)} ${m[1].toFixed(1)}` : `Q${p[0].toFixed(1)} ${p[1].toFixed(1)} ${m[0].toFixed(1)} ${m[1].toFixed(1)}`;
+  });
+  const p = pts[0]; const q = pts[1];
+  return d + `Q${p[0].toFixed(1)} ${p[1].toFixed(1)} ${((p[0] + q[0]) / 2).toFixed(1)} ${((p[1] + q[1]) / 2).toFixed(1)}Z`;
+}
+
+function cityMap(variant) {
+  const r = seeded(variant === 'journey' ? 20260 : 71123);
+  let svg;
+  if (variant === 'journey') {
+    const streets = [
+      district(r, { cx: 1180, cy: 560, w: 760, h: 560, angle: -12, step: 54, keep: 0.62 }),
+      district(r, { cx: 560, cy: 820, w: 720, h: 360, angle: 8, step: 50, keep: 0.5 }),
+      district(r, { cx: 1460, cy: 160, w: 420, h: 320, angle: 24, step: 46, keep: 0.55 }),
+    ].join('');
+    const sparse = district(r, { cx: 360, cy: 240, w: 640, h: 420, angle: -4, step: 64, keep: 0.28 });
+    const rings = [1, 2, 3, 4].map((k) => contour(r, 300, 170, 60 + k * 46, 0.12)).join('');
+    svg = `
+      <g class="cm-contours"><path d="${rings}"/></g>
+      <g class="cm-streets cm-minor"><path d="${sparse}"/></g>
+      <g class="cm-streets"><path d="${streets}"/></g>
+      <g class="cm-arterials">
+        <path d="M-60 892C280 878 560 846 780 795S1090 615 1250 475 1500 270 1680 230"/>
+        <path d="M260 -60C320 180 380 380 520 560S760 900 820 1080"/>
+        <path d="M1680 760C1440 720 1220 760 1060 860S880 1010 800 1080"/>
+        <path d="M980 -60C1000 150 1070 300 1240 430"/>
+      </g>
+      <path class="cm-coast" d="M1240 1080C1300 960 1420 880 1680 850"/>
+      <path class="cm-route-ghost" d="M-20 885C300 872 560 842 780 790S1090 610 1250 470 1450 300 1600 250"/>
+      <path class="cm-route" pathLength="1" d="M-20 885C300 872 560 842 780 790S1090 610 1250 470 1450 300 1600 250"/>
+      <g class="cm-nodes">${[0, 1, 2, 3, 4].map((k) => `<g class="cm-node" data-k="${k}"><circle class="cm-node-halo" r="14"/><circle class="cm-node-dot" r="5"/></g>`).join('')}</g>
+      <text class="cm-coord" x="1560" y="972" text-anchor="end">10.3157° N · 123.8854° E</text>`;
+  } else {
+    const sparse = district(r, { cx: 1250, cy: 300, w: 700, h: 520, angle: 16, step: 70, keep: 0.34 });
+    const lane = 'M-80 900C260 820 520 700 760 610S1180 420 1440 300 1640 230 1720 210';
+    svg = `
+      <g class="cm-streets cm-minor"><path d="${sparse}"/></g>
+      <g class="cm-highway">
+        <path class="cm-road" d="${lane}"/>
+        <path class="cm-road cm-road--b" d="M-80 380C200 400 420 470 620 600S900 900 980 1080"/>
+        <path class="cm-road cm-road--c" d="M1180 1080C1220 860 1300 700 1440 620S1660 540 1720 540"/>
+        <circle class="cm-road cm-road--loop" cx="760" cy="610" r="120"/>
+      </g>
+      <g class="cm-lanes">
+        <path d="${lane}"/>
+        <path d="M-80 380C200 400 420 470 620 600S900 900 980 1080"/>
+        <path d="M1180 1080C1220 860 1300 700 1440 620S1660 540 1720 540"/>
+      </g>
+      <path class="cm-route cm-route--drive" pathLength="1" d="M-80 380C200 400 420 470 620 600S760 700 820 760"/>
+      <g class="cm-nodes"><g class="cm-node on" data-end="1"><circle class="cm-node-halo" r="16"/><circle class="cm-node-dot" r="6"/></g></g>
+      <text class="cm-coord" x="40" y="60">LAHUG · CEBU CITY</text>`;
+  }
+  // Inline position + SVG defaults (no fill, no stroke) keep this harmless if
+  // a stale cached landing.css ever loads without the map rules: it stays out
+  // of the layout and draws nothing instead of black filled shapes.
+  const wrap = el('div', { class: `lb-citymap lb-citymap--${variant}`, 'aria-hidden': 'true', style: 'position:absolute;inset:0;z-index:0;pointer-events:none' });
+  wrap.innerHTML = `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" focusable="false" width="100%" height="100%" fill="none" stroke="none">${svg}</svg>`; // static, generated markup only
+  // place each node exactly on its route: the stage nodes at 0, 1/4 … 1
+  const route = wrap.querySelector('.cm-route');
+  const nodes = [...wrap.querySelectorAll('.cm-node')];
+  requestAnimationFrame(() => {
+    if (!route || !route.isConnected) return;
+    const len = route.getTotalLength();
+    nodes.forEach((n, k) => {
+      const at = n.dataset.end ? len : (len * k) / Math.max(1, nodes.length - 1);
+      const pt = route.getPointAtLength(at);
+      n.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`);
+    });
+  });
+  return wrap;
+}
+
 /* Small reusable bits for the interface previews */
 const uiAvatar = (src, cls = '') => el('img', { class: 'lb-ui-avatar ' + cls, src, alt: '', loading: 'lazy', decoding: 'async' });
 const uiIcon = (name) => el('i', { 'data-lucide': name, 'aria-hidden': 'true' });
@@ -336,7 +468,7 @@ function farePreview() {
   const row = (k, v, cls = '') => el('div', { class: 'lb-rc-row ' + cls }, el('span', {}, k), el('span', { class: 't-num' }, v));
   const receipt = el('div', { class: 'lb-receipt' },
     el('div', { class: 'lb-rc-head' },
-      el('div', {}, el('strong', {}, 'Lakbay Car'), el('span', {}, `Ortigas Center → BGC · ${fare.km} km`)),
+      el('div', {}, el('strong', {}, 'Lakbay Car'), el('span', {}, `IT Park → Ayala Center · ${fare.km} km`)),
       el('span', { class: 'lb-rc-eta t-num' }, `${fare.mins} min`)),
     row('Base fare', `₱${fare.base}`),
     row(`Distance · ${fare.km} km`, `₱${fare.distance}`),
@@ -348,7 +480,9 @@ function farePreview() {
   const wallet = el('div', { class: 'lb-wallet' },
     el('strong', { class: 'lb-wallet-h' }, 'Pay with'),
     ...PAYMENT_METHODS.map((m) => el('div', { class: 'lb-wallet-row' + (m.id === 'gcash' ? ' is-on' : '') },
-      el('span', { class: 'lb-wallet-logo', style: `background:${m.logoBg};color:${m.logoFg}` }, m.logo.slice(0, 1)),
+      m.mark
+        ? el('img', { class: 'lb-wallet-logo', src: m.mark, alt: '', width: '34', height: '34' })
+        : el('span', { class: 'lb-wallet-logo', style: `background:${m.logoBg};color:${m.logoFg}` }, m.logo.slice(0, 1)),
       el('span', { class: 'lb-wallet-txt' }, el('strong', {}, m.name), el('small', {}, m.sub)),
       el('span', { class: 'lb-wallet-radio', 'aria-hidden': 'true' }))));
   return el('div', { class: 'lb-fare-stage', 'data-reveal': 'media' }, receipt, wallet);
@@ -379,7 +513,7 @@ function chatPreview() {
       uiAvatar('assets/avatars/d3.png'),
       el('div', {}, el('strong', {}, 'Jun · Toyota Vios'), el('span', {}, 'Arriving in 2 min'))),
     el('div', { class: 'lb-chat-thread' },
-      msg('them', 'On my way po. Nasa Meralco Ave na ako.', '8:41'),
+      msg('them', 'On my way po. Nasa Salinas Drive na ako.', '8:41'),
       msg('me', 'Sa gate po ako, near the guard house.', '8:42'),
       msg('them', 'Copy po, I see you. Black Vios.', '8:43')),
     el('div', { class: 'lb-chat-quick', 'aria-hidden': 'true' },
@@ -415,10 +549,10 @@ function journeyScreens() {
     phone(
       el('div', { class: 'lb-ui-top' }, el('strong', { class: 'lb-ui-h' }, 'Where to?')),
       el('div', { class: 'lb-ui-fields' },
-        el('div', { class: 'lb-ui-field' }, el('span', { class: 'lb-ui-dot' }), el('span', {}, el('small', {}, 'Pickup'), 'Ortigas Center')),
-        el('div', { class: 'lb-ui-field is-focus' }, el('span', { class: 'lb-ui-dot lb-ui-dot--sq' }), el('span', {}, el('small', {}, 'Drop-off'), 'Bonifacio High Street'))),
+        el('div', { class: 'lb-ui-field' }, el('span', { class: 'lb-ui-dot' }), el('span', {}, el('small', {}, 'Pickup'), 'Cebu IT Park')),
+        el('div', { class: 'lb-ui-field is-focus' }, el('span', { class: 'lb-ui-dot lb-ui-dot--sq' }), el('span', {}, el('small', {}, 'Drop-off'), 'Ayala Center Cebu'))),
       el('ul', { class: 'lb-ui-list' },
-        ...[['house', 'Home', 'Kapitolyo, Pasig'], ['briefcase', 'Work', 'Ayala Ave, Makati'], ['shopping-bag', 'SM Megamall', 'EDSA, Mandaluyong'], ['plane', 'NAIA Terminal 3', 'Andrews Ave, Pasay']]
+        ...[['house', 'Home', 'Banilad, Cebu City'], ['briefcase', 'Work', 'IT Park, Lahug'], ['shopping-bag', 'SM City Cebu', 'North Reclamation Area'], ['plane', 'Mactan-Cebu Airport', 'Lapu-Lapu City']]
           .map(([ic, n, a]) => el('li', {}, uiIcon(ic), el('span', {}, el('strong', {}, n), el('small', {}, a))))),
       el('div', { class: 'lb-ui-pad' }, el('span', { class: 'lb-ui-btn lb-ui-btn--dark' }, 'Choose a ride'))),
     phone(
@@ -436,7 +570,7 @@ function journeyScreens() {
       mapArt({ route: 'M235 360V290H150V235H50', mover: [0, 0.82, 8], pickup: [50, 235] }),
       sheet(
         el('div', { class: 'lb-ui-row' },
-          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'Arriving in 3 min'), el('small', {}, 'Meet at the Meralco Ave gate')),
+          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'Arriving in 3 min'), el('small', {}, 'Meet at the Salinas Drive gate')),
           uiAvatar('assets/avatars/d3.png')),
         el('div', { class: 'lb-ui-actions' },
           el('span', { class: 'lb-ui-chip' }, uiIcon('message-circle'), 'Chat'),
@@ -446,14 +580,14 @@ function journeyScreens() {
       mapArt({ route: 'M50 235V180H150V70H235', mover: [0.08, 0.86, 10], travelled: [8, 86], pickup: [50, 235], dest: [235, 70] }),
       sheet(
         el('div', { class: 'lb-ui-row' },
-          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'On the way to BGC'), el('small', { class: 't-num' }, '14 min · 4.2 km left')),
+          el('span', {}, el('strong', { class: 'lb-ui-h' }, 'On the way to Ayala'), el('small', { class: 't-num' }, '14 min · 4.2 km left')),
           el('span', { class: 'lb-ui-chip' }, uiIcon('share-2'), 'Share')),
         el('div', { class: 'lb-ui-progress' }, el('span', {})))),
     phone(
       el('div', { class: 'lb-ui-done' },
         el('span', { class: 'lb-ui-done-mark' }, uiIcon('check')),
         el('strong', { class: 'lb-ui-h' }, 'You’ve arrived'),
-        el('small', {}, 'Bonifacio High Street · 8:59 AM')),
+        el('small', {}, 'Ayala Center Cebu · 8:59 AM')),
       sheet(
         el('div', { class: 'lb-ui-fare t-num' }, el('span', {}, 'Paid with GCash'), el('strong', {}, `₱${carFare}`)),
         el('div', { class: 'lb-ui-stars' }, ...[1, 2, 3, 4, 5].map(() => uiIcon('star'))),
@@ -580,6 +714,7 @@ function renderLanding() {
   const screens = journeyScreens();
   main.appendChild(el('section', { class: 'lb-journey', id: 'lb-journey', 'aria-labelledby': 'lb-jr-title' },
     el('div', { class: 'lb-jr-pin' },
+      cityMap('journey'),
       el('div', { class: 'container lb-jr-head' },
         el('div', {},
           el('span', { class: 'lb-eyebrow lb-eyebrow--dark' }, 'The Lakbay journey'),
@@ -649,6 +784,7 @@ function renderLanding() {
 
   /* ---------- rider recruitment ---------- */
   main.appendChild(el('section', { class: 'lb-section lb-riders', id: 'lb-riders' },
+    cityMap('drive'),
     el('div', { class: 'container lb-riders-grid' },
       el('div', { class: 'lb-riders-media' },
         el('img', { class: 'lb-riders-photo', src: 'assets/promos/campaign-helmet.webp', alt: 'A Lakbay rider helmet, green with lime stripes', loading: 'lazy', decoding: 'async', 'data-reveal': 'media' }),
@@ -690,6 +826,7 @@ function renderLanding() {
   initScrollSpy(page);
   /* Scrolling stays fully native (no wheel hijacking): smoothing is applied
      only to scroll-linked visuals (journey track), never to the page. */
+  startSmoothScroll();
   initJourney(page);
   initRail(rail, prev, next);
 
@@ -733,7 +870,11 @@ function initJourney(page) {
   const stages = [...trackEl.children];
   const steps = [...sec.querySelectorAll('.lb-jr-step')];
   const n = stages.length;
-  const mq = window.matchMedia('(min-width: 960px) and (min-height: 640px)');
+  // pinned on any screen tall enough to hold the stage (phones included);
+  // short landscape screens fall back to the swipe row
+  const mq = window.matchMedia('(min-height: 600px)');
+  const stepList = qs('.lb-jr-steps', sec);
+  const mapNodes = [...sec.querySelectorAll('.lb-citymap .cm-node')];
   let pinned = false; let dist = 0; let x = 0; let target = 0; let raf = 0; let last = 0; let active = -1;
 
   const setActive = (i) => {
@@ -744,6 +885,11 @@ function initJourney(page) {
       b.classList.toggle('is-active', k === i);
       if (k === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
     });
+    mapNodes.forEach((nd, k) => { nd.classList.toggle('on', k <= i); nd.classList.toggle('now', k === i); }); // route stops reached so far
+    // phones: keep the active stage label in view in the scrolling step row
+    if (stepList && stepList.scrollWidth > stepList.clientWidth && steps[i]) {
+      stepList.scrollTo({ left: steps[i].parentElement.offsetLeft - 16, behavior: 'smooth' });
+    }
   };
   const paint = () => { trackEl.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`; };
   const frame = (t) => {
@@ -761,7 +907,7 @@ function initJourney(page) {
     target = -p * dist;
     sec.style.setProperty('--jr-p', p.toFixed(4));
     setActive(Math.round(p * (n - 1)));
-    if (snap) { x = target; paint(); return; }
+    if (snap || lenis) { x = target; paint(); return; } // Lenis already eases the scroll
     if (!raf) raf = requestAnimationFrame(frame);
   };
   const onSwipe = () => {
@@ -790,13 +936,40 @@ function initJourney(page) {
     const behavior = reduceMotion() ? 'auto' : 'smooth';
     if (pinned) {
       const top = sec.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({ top: top + (i / (n - 1)) * dist, behavior });
+      scrollToY(top + (i / (n - 1)) * dist);
     } else {
       vp.scrollTo({ left: stages[i].offsetLeft - stages[0].offsetLeft, behavior });
     }
   };
 
   steps.forEach((b, i) => b.addEventListener('click', () => goTo(i)));
+
+  // touch: a sideways swipe on the pinned story moves one stage; vertical
+  // swipes stay plain page scrolling (touch-action: pan-y in CSS)
+  let sx = 0; let sy = 0;
+  vp.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') { sx = e.clientX; sy = e.clientY; } }, { passive: true });
+  vp.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse' || !pinned) return;
+    const dx = e.clientX - sx; const dy = e.clientY - sy;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(Math.max(0, Math.min(n - 1, active + (dx < 0 ? 1 : -1))));
+  }, { passive: true });
+
+  // desktop: the active phone leans a little toward the cursor (-1..1 → CSS)
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches && !reduceMotion()) {
+    let leanEl = null;
+    const unlean = (p) => { if (!p) return; p.style.setProperty('--mx', '0'); p.style.setProperty('--my', '0'); p.classList.remove('is-leaning'); };
+    sec.addEventListener('pointermove', (e) => {
+      const ph = qs('.lb-jr-stage.is-active .lb-phone', sec);
+      if (ph !== leanEl) { unlean(leanEl); leanEl = ph; }
+      if (!ph) return;
+      const r = ph.getBoundingClientRect();
+      const clamp1 = (v) => Math.max(-1, Math.min(1, v));
+      ph.classList.add('is-leaning');
+      ph.style.setProperty('--mx', clamp1((e.clientX - r.left - r.width / 2) / r.width).toFixed(3));
+      ph.style.setProperty('--my', clamp1((e.clientY - r.top - r.height / 2) / r.height).toFixed(3));
+    }, { passive: true });
+    sec.addEventListener('pointerleave', () => { unlean(leanEl); leanEl = null; });
+  }
   // keyboard users tabbing into an off-screen stage get it scrolled into view
   trackEl.addEventListener('focusin', (e) => {
     const i = stages.findIndex((s) => s.contains(e.target));
@@ -1204,12 +1377,31 @@ function renderGoodbye() {
 }
 
 /* ---------- router wiring ---------- */
+/* Reload keeps your place on the landing page. The page is drawn by JS after
+   load, so the browser's own restoration runs too early (page still empty);
+   we save the position on leave and restore it once the landing is built. */
+const LANDING_Y = 'lakbay:landingY';
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.addEventListener('pagehide', () => {
+  if (parseHash().id === 'landing') sessionStorage.setItem(LANDING_Y, String(Math.round(window.scrollY)));
+});
+let firstRoute = true;
+
 function renderRoute() {
   const { id, params } = parseHash();
   // landing listeners (scroll spy, journey, menu) never outlive the landing
   landingOff.forEach((f) => f());
   landingOff = [];
+  const restoreY = firstRoute && id === 'landing' ? Number(sessionStorage.getItem(LANDING_Y)) || 0 : 0;
+  firstRoute = false;
   window.scrollTo(0, 0);
+  if (restoreY) {
+    // after this render (and the journey's pinned height) is in place
+    requestAnimationFrame(() => {
+      if (lenis) lenis.scrollTo(restoreY, { immediate: true });
+      else window.scrollTo(0, restoreY);
+    });
+  }
   switch (id) {
     case 'login': return renderLogin(params);
     case 'register': return renderRegister(params);

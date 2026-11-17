@@ -544,8 +544,18 @@ html, body { overflow-x: clip; }
 .lb-jr-copy h3 { font-family: var(--font-display); font-size: clamp(26px, 2.6vw, 38px); font-weight: 650; letter-spacing: -0.035em; line-height: 1.05; margin: 10px 0 12px; }
 .lb-jr-body { font-size: 16px; line-height: 1.62; color: var(--c-on-dark-2); max-width: 34ch; }
 .lb-jr-copy .btn { margin-top: 26px; }
-.lb-jr-stage .lb-phone { transform: translateY(18px) scale(0.97); transition: transform 900ms var(--ease-emphasized); }
-.lb-jr-stage.is-active .lb-phone { transform: none; }
+/* 3D phone: waiting stages stand turned away; the active one swings toward
+   you and keeps a slight three-quarter angle. --mx/--my add a small lean
+   toward the cursor (set by JS on desktop, 0 otherwise). */
+.lb-jr-stage { perspective: 1500px; }
+.lb-jr-stage .lb-phone {
+  --ry: -26deg; --rx: 8deg; --mx: 0; --my: 0;
+  transform: translateY(22px) scale(0.94)
+    rotateX(calc(var(--rx) - var(--my) * 6deg)) rotateY(calc(var(--ry) + var(--mx) * 8deg));
+  transition: transform 900ms var(--ease-emphasized), box-shadow 900ms var(--ease-emphasized);
+}
+.lb-jr-stage.is-active .lb-phone { --ry: -12deg; --rx: 4deg; transform: translateY(0) scale(1) rotateX(calc(var(--rx) - var(--my) * 6deg)) rotateY(calc(var(--ry) + var(--mx) * 8deg)); }
+.lb-jr-stage.is-active .lb-phone.is-leaning { transition-duration: 450ms; }
 
 /* pinned (desktop): the stage holds still while the track slides */
 @media (min-width: 960px) {
@@ -564,12 +574,40 @@ html, body { overflow-x: clip; }
 
 /* phone frame + screen UI */
 .lb-phone {
-  --ph: clamp(440px, calc(100vh - 360px), 560px);
+  --ph: clamp(430px, calc(100vh - 390px), 540px);
   flex-shrink: 0;
   width: calc(var(--ph) * 0.5); height: var(--ph);
-  padding: 8px; border-radius: 40px;
-  background: #050907;
-  box-shadow: 0 0 0 1px rgba(244, 246, 239, 0.12), 0 50px 90px -40px rgba(0, 0, 0, 0.85);
+  position: relative; transform-style: preserve-3d;
+  /* outer metal band (padding) around a black glass bezel */
+  padding: 8px; border-radius: 44px;
+  background: linear-gradient(140deg, #4A5550 0%, #1C2421 22%, #0E1311 50%, #252E2A 78%, #56625C 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    /* edge thickness: stacked 1px slices on the side facing away */
+    1px 1px 0 #2A3330, 2px 2px 0 #222A27, 3px 3px 0 #1B2220, 4px 4px 0 #161C1A, 5px 5px 0 #121715, 6px 6px 0 #0E1311,
+    /* contact + ambient shadow, so it sits in space */
+    30px 60px 80px -30px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+/* side buttons: power on the right, two volume keys on the left */
+.lb-phone::before, .lb-phone::after {
+  content: ""; position: absolute; width: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, #56625C, #1C2421);
+}
+.lb-phone::after { right: -3px; top: 26%; height: 14%; }
+.lb-phone::before { left: -3px; top: 20%; height: 8%; box-shadow: 0 calc(var(--ph) * 0.11) 0 #2E3834; }
+/* the screen sits inside a black bezel, with a camera pill and a glass sheen */
+.lb-phone-screen { box-shadow: 0 0 0 5px #030504; }
+.lb-phone-screen::before {
+  content: ""; position: absolute; z-index: 6; top: 9px; left: 50%; width: 32%; height: 22px; margin-left: -16%;
+  border-radius: 12px; background: #000;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.lb-phone-screen::after {
+  content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 26%, transparent 42%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-jr-stage .lb-phone, .lb-jr-stage.is-active .lb-phone { transform: none; }
 }
 .lb-journey:not(.is-pinned) .lb-phone { --ph: 500px; align-self: center; }
 .lb-phone-screen {
@@ -1029,4 +1067,179 @@ html, body { overflow-x: clip; }
 .install-banner-body span { font-size: var(--fs-xs); color: var(--c-ink-3); line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) {
   .install-banner { transition: none; }
+}
+
+/* ---------- Lenis smooth scrolling (from lenis/dist/lenis.css) ---------- */
+html.lenis, html.lenis body { height: auto; }
+.lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+.lenis [data-lenis-prevent], .lenis [data-lenis-prevent-wheel], .lenis [data-lenis-prevent-touch] { overscroll-behavior: contain; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+
+/* ---------- pinned journey: svh so mobile browser bars don't resize it ---------- */
+.lb-journey.is-pinned .lb-jr-pin { height: calc(100svh - var(--lb-head-h)); }
+.lb-journey.is-pinned .lb-jr-viewport { touch-action: pan-y; }
+
+/* phones + small tablets: the same pinned story, compacted to one screen */
+@media (max-width: 959.98px) {
+  .lb-journey.is-pinned .lb-jr-pin { padding: 16px 0 12px; justify-content: flex-start; }
+  .lb-journey.is-pinned .lb-jr-head { gap: 12px; }
+  .lb-journey.is-pinned .lb-jr-head .lb-h2 { font-size: clamp(24px, 6.6vw, 34px); margin-top: 8px; max-width: none; }
+  .lb-journey.is-pinned .lb-jr-head > div:first-child { width: 100%; }
+  .lb-journey.is-pinned .lb-jr-steps {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    width: calc(100% + 40px); margin-inline: -20px; padding-inline: 14px;
+  }
+  .lb-journey.is-pinned .lb-jr-steps::-webkit-scrollbar { display: none; }
+  .lb-journey.is-pinned .lb-jr-step { min-height: 40px; padding: 0 10px; white-space: nowrap; }
+  .lb-journey.is-pinned .lb-jr-bar { margin-top: 8px; }
+  .lb-journey.is-pinned .lb-jr-viewport { margin-top: 18px; }
+  .lb-journey.is-pinned .lb-jr-track { gap: 24px; }
+  .lb-journey.is-pinned .lb-jr-stage { width: min(80vw, 420px); gap: 16px; }
+  .lb-journey.is-pinned .lb-jr-num { display: none; }
+  .lb-journey.is-pinned .lb-jr-name { margin-top: 0; }
+  .lb-journey.is-pinned .lb-jr-copy h3 { font-size: 22px; margin: 4px 0 6px; }
+  .lb-journey.is-pinned .lb-jr-body { font-size: 14.5px; line-height: 1.5; }
+  .lb-journey.is-pinned .lb-jr-copy .btn { margin-top: 12px; min-height: 44px; }
+  .lb-journey.is-pinned .lb-phone { --ph: clamp(300px, calc(100svh - 450px), 470px); align-self: center; }
+}
+
+/* ==========================================================================
+   Cartographic environment — Journey + Drive
+   One stroke language (ice strokes at 3–16% opacity, lime only for routes),
+   two compositions. Generated SVG: js/auth/main.js → cityMap().
+   ========================================================================== */
+.lb-citymap { --ov-x: 10%; --ov-y: 6%; overflow: hidden; }
+.lb-citymap svg {
+  display: block; position: absolute;
+  left: calc(var(--ov-x) * -1); top: calc(var(--ov-y) * -1);
+  width: calc(100% + var(--ov-x) * 2); height: calc(100% + var(--ov-y) * 2);
+  max-width: none; /* the global img/svg reset would cap the overscan */
+}
+.lb-citymap path, .lb-citymap circle { fill: none; }
+.cm-streets path { stroke: rgba(244, 246, 239, 0.07); stroke-width: 1; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cm-minor path { stroke: rgba(244, 246, 239, 0.045); }
+.cm-arterials path { stroke: rgba(244, 246, 239, 0.1); stroke-width: 2.2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cm-contours path { stroke: rgba(182, 245, 0, 0.07); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.cm-coast { stroke: rgba(244, 246, 239, 0.12); stroke-width: 1.2; stroke-dasharray: 2 7; }
+.cm-route-ghost { stroke: rgba(182, 245, 0, 0.16); stroke-width: 2; stroke-dasharray: 3 8; stroke-linecap: round; }
+.cm-route {
+  stroke: var(--c-primary); stroke-width: 2.2; stroke-linecap: round; opacity: 0.62;
+  stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--jr-p, 0));
+}
+.cm-node-dot { fill: var(--c-dark); stroke: rgba(244, 246, 239, 0.35); stroke-width: 2; transition: fill 500ms var(--ease-standard), stroke 500ms var(--ease-standard); }
+.cm-node-halo { fill: rgba(182, 245, 0, 0); transition: fill 600ms var(--ease-standard); }
+.cm-node.on .cm-node-dot { fill: var(--c-primary); stroke: var(--c-primary); }
+.cm-node.now .cm-node-halo, .cm-node[data-end] .cm-node-halo { fill: rgba(182, 245, 0, 0.16); }
+.cm-coord { fill: rgba(244, 246, 239, 0.32); font-family: var(--font-ui); font-size: 13px; font-weight: 650; letter-spacing: 0.14em; }
+
+/* fine grain so large dark fields read as a surface, not a flat fill */
+.lb-jr-pin::after, .lb-riders::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Journey ---------- */
+.lb-journey { background: linear-gradient(172deg, #101A17 0%, #0E1714 55%, #16211C 100%); overflow: clip; }
+.lb-jr-pin { position: relative; isolation: isolate; }
+.lb-jr-pin > :not(.lb-citymap) { position: relative; z-index: 1; }
+/* streets stay sparse behind the headline and copy (top-left), dense around the phones */
+.lb-citymap--journey {
+  -webkit-mask-image: radial-gradient(120% 105% at 80% 72%, #000 34%, rgba(0, 0, 0, 0.42) 72%, rgba(0, 0, 0, 0.18) 100%);
+  mask-image: radial-gradient(120% 105% at 80% 72%, #000 34%, rgba(0, 0, 0, 0.42) 72%, rgba(0, 0, 0, 0.18) 100%);
+}
+/* parallax: the city drifts slower than the story track */
+.lb-citymap--journey svg { transform: translate3d(calc(var(--jr-p, 0) * -6%), calc(var(--jr-p, 0) * -2.5%), 0); }
+
+/* step navigation: the active stage is unmistakable, the rest stay readable */
+.lb-jr-step { position: relative; color: rgba(244, 246, 239, 0.62); }
+.lb-jr-step::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px;
+  background: var(--c-primary); transform: scaleX(0); transform-origin: left center;
+  transition: transform 520ms var(--ease-emphasized);
+}
+.lb-jr-step.is-active { color: var(--c-on-dark); }
+.lb-jr-step.is-active .t-num { color: var(--c-primary); opacity: 1; }
+.lb-jr-step.is-active::after { transform: scaleX(1); }
+
+/* outlined numerals: quiet when waiting, lime-lit when current */
+.lb-jr-num { -webkit-text-stroke: 1.5px rgba(244, 246, 239, 0.26); transition: color 700ms var(--ease-standard), -webkit-text-stroke-color 700ms var(--ease-standard); }
+.lb-jr-stage.is-active .lb-jr-num { color: rgba(182, 245, 0, 0.07); -webkit-text-stroke-color: var(--c-primary); }
+.lb-jr-stage { opacity: 0.42; }
+.lb-jr-stage.is-active { opacity: 1; }
+/* copy settles in a beat after the stage arrives (label, title, body) */
+.lb-jr-copy > * { transition: transform 800ms var(--ease-emphasized), opacity 600ms var(--ease-standard); }
+.lb-jr-stage:not(.is-active) .lb-jr-copy > * { transform: translateY(10px); }
+.lb-jr-stage.is-active .lb-jr-copy > :nth-child(2) { transition-delay: 60ms; }
+.lb-jr-stage.is-active .lb-jr-copy > :nth-child(3) { transition-delay: 110ms; }
+.lb-jr-stage.is-active .lb-jr-copy > :nth-child(4) { transition-delay: 160ms; }
+.lb-jr-stage.is-active .lb-jr-copy > :nth-child(5) { transition-delay: 210ms; }
+
+/* phone: calmer angle, lit from behind so it separates from the map */
+.lb-jr-stage .lb-phone { --ry: -18deg; --rx: 6deg; }
+.lb-jr-stage.is-active .lb-phone { --ry: -8deg; --rx: 3deg; }
+.lb-jr-stage { position: relative; isolation: isolate; }
+.lb-jr-stage::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  width: 560px; height: 560px; right: -150px; top: 50%; margin-top: -280px;
+  background: radial-gradient(closest-side, rgba(182, 245, 0, 0.13), rgba(182, 245, 0, 0.04) 55%, rgba(182, 245, 0, 0) 100%);
+  opacity: 0; transition: opacity 900ms var(--ease-standard);
+}
+.lb-jr-stage.is-active::before { opacity: 1; }
+@media (max-width: 959.98px) {
+  .lb-jr-stage::before { width: 420px; height: 420px; right: auto; left: 50%; margin-left: -210px; top: auto; bottom: -90px; margin-top: 0; }
+}
+
+/* ---------- Drive (rider recruitment) ---------- */
+.lb-riders { background: linear-gradient(190deg, #101A17 0%, #0F1815 50%, #18231E 100%); position: relative; isolation: isolate; }
+.lb-riders > .container { position: relative; z-index: 1; }
+.lb-citymap--drive {
+  --ov-x: 6%; --ov-y: 8%;
+  -webkit-mask-image: radial-gradient(115% 100% at 30% 58%, #000 32%, rgba(0, 0, 0, 0.35) 80%);
+  mask-image: radial-gradient(115% 100% at 30% 58%, #000 32%, rgba(0, 0, 0, 0.35) 80%);
+}
+.cm-road { stroke: rgba(244, 246, 239, 0.045); stroke-width: 36; stroke-linecap: round; }
+.cm-road--b, .cm-road--c { stroke-width: 24; stroke: rgba(244, 246, 239, 0.035); }
+.cm-road--loop { stroke-width: 12; stroke: rgba(244, 246, 239, 0.03); }
+.cm-lanes path { stroke: rgba(244, 246, 239, 0.16); stroke-width: 1.4; stroke-dasharray: 14 22; stroke-linecap: round; }
+.cm-route--drive { stroke-width: 3; stroke-dashoffset: 0; }
+/* helmet lit like a product shot; its frame melts into the road map */
+.lb-riders-media { isolation: isolate; }
+.lb-riders-media::before {
+  content: ""; position: absolute; z-index: -1; inset: -12% -18% 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(182, 245, 0, 0.11), rgba(182, 245, 0, 0) 75%);
+}
+.lb-riders-photo { box-shadow: 0 0 0 1px rgba(244, 246, 239, 0.07), 0 50px 90px -40px rgba(0, 0, 0, 0.85); }
+
+/* scroll-linked motion where the browser supports it (CSS only, no JS):
+   the drive map drifts, lane markings flow, the lime lane draws in */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .lb-riders { view-timeline-name: --drive; }
+    .lb-citymap--drive svg { animation: cm-drift linear both; animation-timeline: --drive; }
+    .cm-lanes path { animation: cm-flow linear both; animation-timeline: --drive; }
+    .cm-route--drive { animation: cm-draw linear both; animation-timeline: --drive; animation-range: entry 20% cover 55%; }
+  }
+}
+@keyframes cm-drift { from { transform: translate3d(0, 4%, 0); } to { transform: translate3d(-3%, -4%, 0); } }
+@keyframes cm-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -360; } }
+@keyframes cm-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* density steps down with the screen: tablets drop the faint district,
+   phones keep only arterials, roads and the route */
+@media (max-width: 1023.98px) { .cm-minor { display: none; } }
+@media (max-width: 767.98px) {
+  .cm-contours, .cm-coord { display: none; }
+  .cm-streets path { stroke: rgba(244, 246, 239, 0.055); }
+  .lb-citymap { --ov-x: 40%; --ov-y: 4%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-citymap--journey svg { transform: none; }
+  .lb-jr-stage:not(.is-active) .lb-jr-copy > * { transform: none; }
+}
+
+/* narrow screens: the earnings card overlaps only the photo's lower edge,
+   so the helmet stays the focal image */
+@media (max-width: 959.98px) {
+  .lb-riders-media { padding-bottom: 0; }
+  .lb-earn { position: relative; right: auto; bottom: auto; width: min(320px, 88%); margin: -84px 0 0 auto; }
 }
